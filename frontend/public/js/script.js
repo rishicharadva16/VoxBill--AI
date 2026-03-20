@@ -59,7 +59,9 @@ document.addEventListener('DOMContentLoaded', () => {
     ───────────────────────────────────────── */
     let orderItems = [];
     let isListening = false;
-    let selectedLang = 'en-IN';
+    let selectedLang =
+        localStorage.getItem('vb_voice_language')
+        || 'en-IN';
     let currentTotals = { subtotal: 0, discountAmt: 0, taxAmt: 0, grandTotal: 0 };
 
     /* ─────────────────────────────────────────
@@ -172,10 +174,19 @@ document.addEventListener('DOMContentLoaded', () => {
        LANGUAGE SELECTOR
     ───────────────────────────────────────── */
     langBtns.forEach(btn => {
+        btn.classList.toggle(
+            'active',
+            btn.dataset.lang === selectedLang
+        );
         btn.addEventListener('click', () => {
             langBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             selectedLang = btn.dataset.lang;
+            localStorage.setItem(
+                'vb_voice_language',
+                selectedLang
+            );
+            if (recognition) recognition.lang = selectedLang;
         });
     });
 
@@ -386,6 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (SpeechAPI && micBtn) {
         recognition = new SpeechAPI();
+        window.recognition = recognition;
         recognition.continuous = false;
         recognition.interimResults = true;
 

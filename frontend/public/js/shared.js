@@ -833,6 +833,8 @@ function initManagerVoice() {
 
     // ── Command recognition (main) ──────────
     const recognition = new SpeechAPI();
+    window.managerRecognition = recognition;
+    window.recognition = recognition;
     recognition.continuous = false;
     recognition.interimResults = false;
     // Support 3 language modes
@@ -873,6 +875,12 @@ function initManagerVoice() {
         }, 5000);
     }
 
+    function getVoiceLanguage() {
+        return localStorage.getItem(
+            'vb_voice_language'
+        ) || 'en-IN';
+    }
+
     function speak(msg, callback) {
         if (!window.speechSynthesis) {
             console.warn('Vox: SpeechSynthesis not supported.');
@@ -881,7 +889,7 @@ function initManagerVoice() {
         }
         window.speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(msg);
-        u.lang = 'en-IN';
+        u.lang = getVoiceLanguage();
         u.rate = 1.0;
         u.pitch = 1.0;
 
@@ -1074,7 +1082,7 @@ function initManagerVoice() {
                     return;
                 }
                 console.log('Vox: Starting recognition now...');
-                recognition.lang = 'en-IN';
+                recognition.lang = getVoiceLanguage();
                 try {
                     recognition.start();
                 }

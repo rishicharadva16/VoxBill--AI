@@ -65,7 +65,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     let customerName = '';
     let orderNote = '';
     let isListening = false;
-    let selectedLang = 'en-IN';
+    let selectedLang =
+        localStorage.getItem('vb_voice_language')
+        || 'en-IN';
     let currentTotals = {
         subtotal: 0, discountAmt: 0,
         taxAmt: 0, grandTotal: 0
@@ -190,6 +192,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.speechSynthesis.speak(u);
     }
 
+    function syncVoiceLanguage(lang) {
+        selectedLang = lang || 'en-IN';
+        localStorage.setItem('vb_voice_language',
+            selectedLang);
+        document.querySelectorAll('.lang-btn')
+            .forEach(btn => {
+                btn.classList.toggle(
+                    'active',
+                    btn.dataset.lang === selectedLang
+                );
+            });
+        if (recognition) recognition.lang = selectedLang;
+        window.recognition = recognition;
+    }
+
+    function looksLikeVoiceCommand(text) {
+        const t = text.toLowerCase()
+            .trim()
+            .replace(/[.,!?]/g, '');
+        return [
+            /^(?:set\s+)?table\s*(?:number\s*)?\d+$/i,
+            /(?:customer\s*(?:name|mobile|phone|number))/i,
+            /(?:special\s+)?note/i,
+            /\b(?:add|remove|delete|change|replace|update|repeat|undo|clear|reset)\b/i,
+            /\b(?:save draft|resume|continue|open draft|switch to table|new table)\b/i,
+            /\b(?:send to manager|ready for billing|bill ready)\b/i,
+            /\b(?:total amount|bill kitna|how many items|what is the order|order batao)\b/i,
+            /\b(?:price of|cost of|rate of|what items are in menu|menu batao)\b/i,
+            /\b(?:is .+ available|do you have .+|hai kya)\b/i,
+            /\b(?:open bill|print bill|share bill|mark as paid)\b/i,
+            /\bhelp\b/i
+        ].some(pattern => pattern.test(t));
+    }
+
     function feedback(msg, type) {
         const existing = transcriptBox
             .querySelector('.voice-feedback');
@@ -308,6 +344,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         } else {
             recognition = new SpeechAPI();
+            window.recognition = recognition;
             recognition.continuous = false;
             recognition.interimResults = true;
 
@@ -336,17 +373,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             recognition.onresult = e => {
-                const text = Array.from(e.results)
-                    .map(r => r[0].transcript)
-                    .join('');
-                liveTranscript.textContent = text;
+                let interim = '';
+                let final = '';
+                for (let i = e.resultIndex;
+                    i < e.results.length; i++) {
+                    const chunk =
+                        e.results[i][0].transcript;
+                    if (e.results[i].isFinal) {
+                        final += chunk + ' ';
+                    } else {
+                        interim += chunk + ' ';
+                    }
+                }
+                const heard = (final || interim).trim();
+                liveTranscript.textContent = heard;
                 liveTranscript.classList.remove(
                     'placeholder');
-                if (e.results[0].isFinal) {
-                    if (micStage === 'askName') {
-                        handleNameInput(text.trim());
+                if (final.trim()) {
+                    const spoken = final.trim();
+                    if (
+                        micStage === 'askName' &&
+                        looksLikeVoiceCommand(spoken)
+                    ) {
+                        processOrder(spoken);
+                    } else if (micStage === 'askName') {
+                        handleNameInput(spoken);
                     } else {
-                        processOrder(text);
+                        processOrder(spoken);
                     }
                 }
             };
@@ -398,6 +451,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const cleaned = name
             .replace(/\b(the|is|my|name|customer|it's|its|am|i am|this is)\b/gi, '')
             .trim();
+
+        if (!cleaned) {
+            feedback(
+                'Please say the customer name again.',
+                'error');
+            speak(
+                'Please say the customer name again.'
+            );
+            return;
+        }
 
         customerName = cleaned
             .split(' ')
@@ -1358,13 +1421,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelectorAll('.lang-btn')
         .forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('.lang-btn')
-                    .forEach(b =>
-                        b.classList.remove('active'));
-                btn.classList.add('active');
-                selectedLang = btn.dataset.lang;
+                syncVoiceLanguage(btn.dataset.lang);
             });
         });
+
+    syncVoiceLanguage(selectedLang);
 
     renderAll();
 });

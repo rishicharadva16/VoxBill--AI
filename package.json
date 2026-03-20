@@ -1,0 +1,20 @@
+{
+  "name": "voxbill",
+  "version": "1.0.0",
+  "description": "VoxBill — AI Voice Billing System for Restaurants",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "start": "concurrently --kill-others-on-fail --names \"BACKEND,FRONTEND,AI\" --prefix-colors \"cyan,magenta,yellow\" \"npm run backend\" \"npm run frontend\" \"npm run ai\"",
+    "dev": "concurrently --kill-others-on-fail --names \"BACKEND,FRONTEND,AI\" --prefix-colors \"cyan,magenta,yellow\" \"npm run backend:dev\" \"npm run frontend\" \"npm run ai\"",
+    "backend": "cd backend && node server.js",
+    "backend:dev": "cd backend && npx nodemon server.js",
+    "frontend": "cd frontend && node server.js",
+    "ai": "cd ai_service && python ai_service.py",
+    "check:db": "node scripts/check_db.js",
+    "check:services": "node scripts/check_services.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

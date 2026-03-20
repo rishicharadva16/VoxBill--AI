@@ -1,0 +1,34 @@
+# Environment Variables — NEVER commit these
+.env
+*.env
+backend/.env
+frontend/.env
+
+# Node.js
+node_modules/
+*/node_modules/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+ai_service/venv/
+ai_service/__pycache__/
+venv/
+.venv/
+
+# Logs
+*.log
+logs/
+backend.log
+node.log
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/

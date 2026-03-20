@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order History – VoxBill</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css?v=2">
+    <link rel="stylesheet" href="../css/pages.css">
+</head>
+
+<body>
+    <div id="sidebarMount"></div>
+
+    <main class="main" id="main">
+        <div id="topbarMount"></div>
+        <div class="content-wrapper">
+            <div class="container">
+
+                <!-- Page Header -->
+                <div class="page-header" style="margin-bottom: 1rem;">
+                    <div class="page-header-left">
+                        <h1 class="page-title">Orders & Billing</h1>
+                        <p class="page-subtitle">Manage active table orders</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn-secondary"
+                            id="exportCsvBtn"
+                            style="display:flex;
+                                align-items:center;gap:0.5rem;">
+                          <i class="fa-solid fa-file-csv"></i>
+                          Export CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Summary Bar / Stats -->
+                <div class="orders-stats-row mini-stats-row" id="orderSummary" style="margin-bottom: 1rem;">
+                  <div class="stat-card mini-stat card">
+                    <div class="stat-label ms-label">Active Tables</div>
+                    <div class="stat-value ms-val" id="active-tables-count">0</div>
+                  </div>
+                  <div class="stat-card mini-stat card">
+                    <div class="stat-label ms-label">Total Value</div>
+                    <div class="stat-value ms-val" id="total-value">₹0</div>
+                  </div>
+                </div>  
+
+                <!-- Filter Tabs -->
+                <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+                    <div class="filter-tabs" id="statusFilter">
+                        <button class="filter-tab active" data-filter="open">Open</button>
+                        <button class="filter-tab" data-filter="ready">Ready</button>
+                        <button class="filter-tab" data-filter="paid">Paid</button>
+                        <button class="filter-tab" data-filter="all">All</button>
+                    </div>
+                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center;">
+                        <select id="rangeFilter" class="form-input" style="min-width:140px;">
+                            <option value="all">All time</option>
+                            <option value="today">Today</option>
+                            <option value="7">Last 7 days</option>
+                        </select>
+                        <input type="text" id="orderSearch" class="form-input" placeholder="Search table, customer, waiter..." style="min-width:260px;">
+                    </div>
+                </div>
+
+                <div class="card table-card">
+                    <table class="data-table" id="ordersTable">
+                        <thead>
+                            <tr>
+                                <th onclick="setSort('tableNumber')"
+                                    style="cursor:pointer;user-select:none;">
+                                  Table
+                                  <span id="sort-tableNumber"
+                                      style="color:#22D3EE;font-size:0.7rem;">
+                                  </span>
+                                </th>
+                                <th onclick="setSort('customerName')"
+                                    style="cursor:pointer;user-select:none;">
+                                  Customer
+                                  <span id="sort-customerName"
+                                      style="color:#22D3EE;font-size:0.7rem;">
+                                  </span>
+                                </th>
+                                <th onclick="setSort('waiterName')"
+                                    style="cursor:pointer;user-select:none;">
+                                  Waiter
+                                  <span id="sort-waiterName"
+                                      style="color:#22D3EE;font-size:0.7rem;">
+                                  </span>
+                                </th>
+                                <th onclick="setSort('createdAt')"
+                                    style="cursor:pointer;user-select:none;">
+                                  Opened At
+                                  <span id="sort-createdAt"
+                                      style="color:#22D3EE;font-size:0.7rem;">
+                                    ↓
+                                  </span>
+                                </th>
+                                <th>Items</th>
+                                <th onclick="setSort('total')"
+                                    style="cursor:pointer;user-select:none;"
+                                    class="right">
+                                  Total
+                                  <span id="sort-total"
+                                      style="color:#22D3EE;font-size:0.7rem;">
+                                  </span>
+                                </th>
+                                <th class="center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ordersBody"></tbody>
+                    </table>
+                    <div class="table-empty" id="ordersEmpty" style="display:none">
+                        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:3rem 1rem; text-align:center; gap:0.75rem;">
+                          <div style="width:56px; height:56px; border-radius:50%; background:rgba(34,211,238,0.08); border:1.5px solid rgba(34,211,238,0.2); display:flex; align-items:center; justify-content:center; font-size:1.5rem; color:#22D3EE;">
+                            <i class="fa-solid fa-receipt"></i>
+                          </div>
+                          <div>
+                            <p style="font-size:1rem; font-weight:600; color:var(--text); margin-bottom:0.25rem;">No orders yet</p>
+                            <p style="font-size:0.85rem; color:var(--text-muted);">Orders will appear here once waiters start taking them</p>
+                          </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Settle / Detail Modal -->
+    <div class="modal-overlay" id="settleModal" style="display:none;">
+        <div class="modal-box modal-wide card">
+            <div class="modal-header">
+                <h3 id="modalTitle">Table Bill</h3>
+                <button class="modal-close" id="modalClose"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Dynamic Content -->
+            </div>
+            <div class="modal-footer" id="modalFooter">
+                <button class="btn-secondary" id="modalCancel">Cancel</button>
+                <button class="btn-primary" id="settleBtn" data-tip="Settle this bill and close the table"><i class="fa-solid fa-check-double"></i> Mark as
+                    Paid</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../js/api.js"></script>
+    <script src="../js/shared.js"></script>
+    <script src="../js/invoice.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Failsafe unblocker
+            document.querySelectorAll('.modal-overlay, .bill-modal, .modal').forEach(el => {
+              el.style.display = 'none';
+            });
+
+            document.getElementById('sidebarMount').innerHTML = VB.buildSidebar('Orders');
+            document.getElementById('topbarMount').innerHTML = VB.buildTopbar('Orders / Billing');
+            VB.initSidebarBehavior();
+            VB.initOfflineBanner();
+            VB.initGlobalSearch();
+            VB.initManagerVoice();
+            VB.initSSENotifications();
+
+            const urlParams = new URLSearchParams(window.location.search);
+            let tableFilter = urlParams.get('table');
+            let statusFilter = urlParams.get('status');
+
+            let currentStatus = statusFilter || 'open';
+            let currentRange = 'all';
+            let currentOrders = [];
+            let searchQuery = '';
+            window.selectedOrder = null;
+
+            let sortCol = 'createdAt';
+            let sortDir = 'desc';
+
+            // ── Sorting ──────────────────────────────────
+            function sortOrders(orders) {
+                return [...orders].sort((a, b) => {
+                    let va = a[sortCol];
+                    let vb = b[sortCol];
+                    if (sortCol === 'tableNumber' || sortCol === 'total') {
+                        va = Number(va) || 0;
+                        vb = Number(vb) || 0;
+                    } else if (sortCol === 'createdAt') {
+                        va = new Date(va).getTime();
+                        vb = new Date(vb).getTime();
+                    } else {
+                        va = String(va || '').toLowerCase();
+                        vb = String(vb || '').toLowerCase();
+                    }
+                    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+                    if (va > vb) return sortDir === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+
+            function setSort(col) {
+                if (sortCol === col) {
+                    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortCol = col;
+                    sortDir = 'asc';
+                }
+                document.querySelectorAll('[id^="sort-"]').forEach(el => el.textContent = '');
+                const indicator = document.getElementById('sort-' + col);
+                if (indicator) indicator.textContent = sortDir === 'asc' ? ' ↑' : ' ↓';
+                renderOrders();
+            }
+            window.setSort = setSort;
+
+            // ── Skeleton (7 columns matching headers) ────
+            function showOrdersSkeleton() {
+                const body = document.getElementById('ordersBody');
+                if (!body) return;
+                body.innerHTML = Array(5).fill('').map(() => `
+                  <tr>
+                    <td><div class="skeleton sk-line" style="width:60px;"></div></td>
+                    <td><div class="skeleton sk-line" style="width:90px;"></div></td>
+                    <td><div class="skeleton sk-line" style="width:70px;"></div></td>
+                    <td><div class="skeleton sk-line" style="width:80px;"></div></td>
+                    <td><div class="skeleton sk-line" style="width:100px;"></div></td>
+                    <td><div class="skeleton sk-line" style="width:60px;"></div></td>
+                    <td><div class="skeleton sk-line" style="width:50px;"></div></td>
+                  </tr>`).join('');
+            }
+
+            // ── Load Orders from API ─────────────────────
+            async function loadOrders() {
+                showOrdersSkeleton();
+                const res = await VoxAPI.getOrders(currentRange);
+                if (res.ok) {
+                    currentOrders = res.data.data || res.data;
+                    renderOrders();
+                    if (tableFilter) {
+                        const targetOrder = currentOrders.find(o => o.tableNumber == tableFilter && o.status !== 'paid');
+                        if (targetOrder) openModal(targetOrder._id);
+                        tableFilter = null; // only auto-open once
+                    }
+                } else {
+                    document.getElementById('ordersBody').innerHTML = '';
+                    document.getElementById('ordersEmpty').style.display = 'flex';
+                }
+            }
+            window.loadOrders = loadOrders;
+
+            // ── Get filtered orders (status + search) ────
+            function getFilteredOrders() {
+                let filtered = [...currentOrders];
+
+                // Status filter: open = draft + ordering
+                if (currentStatus === 'open') {
+                    filtered = filtered.filter(o => ['draft', 'ordering'].includes(o.status));
+                } else if (currentStatus === 'ready') {
+                    filtered = filtered.filter(o => o.status === 'ready_for_billing');
+                } else if (currentStatus === 'paid') {
+                    filtered = filtered.filter(o => o.status === 'paid');
+                }
+                // 'all' keeps everything
+
+                // Search filter
+                if (searchQuery) {
+                    const q = searchQuery.toLowerCase();
+                    filtered = filtered.filter(o =>
+                        String(o.tableNumber).includes(q) ||
+                        (o.customerName || '').toLowerCase().includes(q) ||
+                        (o.waiterName || '').toLowerCase().includes(q) ||
+                        (o.invoiceNumber || '').toLowerCase().includes(q) ||
+                        (o.items || []).some(i => i.item.toLowerCase().includes(q))
+                    );
+                }
+
+                return filtered;
+            }
+
+            // ── Render Orders ────────────────────────────
+            function renderOrders() {
+                const body = document.getElementById('ordersBody');
+                const empty = document.getElementById('ordersEmpty');
+
+                // Count badges across ALL orders (not filtered)
+                let openCount = 0, readyCount = 0, paidCount = 0;
+                currentOrders.forEach(o => {
+                    if (['draft', 'ordering'].includes(o.status)) openCount++;
+                    else if (o.status === 'ready_for_billing') readyCount++;
+                    else if (o.status === 'paid') paidCount++;
+                });
+
+                // Update filter tab badge counts
+                document.querySelectorAll('#statusFilter .filter-tab').forEach(btn => {
+                    const f = btn.dataset.filter;
+                    let count = 0;
+                    if (f === 'open') count = openCount;
+                    else if (f === 'ready') count = readyCount;
+                    else if (f === 'paid') count = paidCount;
+                    else if (f === 'all') count = currentOrders.length;
+                    let badge = btn.querySelector('.tab-count');
+                    if (!badge) {
+                        badge = document.createElement('span');
+                        badge.className = 'tab-count';
+                        badge.style.cssText = 'margin-left:0.35rem; font-size:0.7rem; background:rgba(255,255,255,0.15); padding:0.1rem 0.4rem; border-radius:999px;';
+                        btn.appendChild(badge);
+                    }
+                    badge.textContent = count;
+                });
+
+                const filtered = getFilteredOrders();
+
+                // Update summary stats (by ID, no innerHTML overwrite)
+                const activeEl = document.getElementById('active-tables-count');
+                const totalEl = document.getElementById('total-value');
+                const totalRev = filtered.reduce((s, o) => s + (o.total || 0), 0);
+                if (activeEl) activeEl.textContent = filtered.length;
+                if (totalEl) totalEl.textContent = `₹${totalRev.toFixed(0)}`;
+
+                if (filtered.length === 0) {
+                    body.innerHTML = '';
+                    empty.style.display = 'flex';
+                    const emptyText = empty.querySelector('p');
+                    if (emptyText) {
+                        emptyText.textContent = searchQuery
+                            ? `No results for "${searchQuery}"`
+                            : 'No orders found';
+                    }
+                    return;
+                }
+                empty.style.display = 'none';
+
+                const isManager = VoxAPI.isManager();
+                const sorted = sortOrders(filtered);
+
+                body.innerHTML = sorted.map(order => {
+                    const dt = new Date(order.createdAt);
+                    const dateStr = dt.toLocaleDateString('en-IN');
+                    const timeStr = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                    const statusMeta = {
+                        draft: { label: 'Draft', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+                        ordering: { label: 'Ordering', color: '#22D3EE', bg: 'rgba(34,211,238,0.12)' },
+                        ready_for_billing: { label: 'Ready', color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
+                        paid: { label: 'Paid', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' }
+                    }[order.status] || { label: order.status || '?', color: '#94a3b8', bg: 'rgba(148,163,184,0.12)' };
+
+                    const itemsPreview = (order.items || []).slice(0, 2).map(i => `${i.qty}x ${i.item}`).join(', ');
+                    const extraItems = Math.max((order.items || []).length - 2, 0);
+
+                    return `<tr class="order-row" data-id="${order._id}" onclick="openModal('${order._id}')" style="cursor:pointer;">
+                        <td><span class="table-badge">Table ${order.tableNumber}</span></td>
+                        <td>
+                          <div style="font-weight:600;">${order.customerName || 'Walk-in'}</div>
+                          <div style="font-size:0.72rem; margin-top:0.2rem;">
+                            <span style="display:inline-flex; align-items:center; padding:0.18rem 0.5rem; border-radius:999px; background:${statusMeta.bg}; color:${statusMeta.color}; font-weight:600; font-size:0.7rem;">
+                              ${statusMeta.label}
+                            </span>
+                          </div>
+                        </td>
+                        <td>${order.waiterName || (isManager ? 'Unassigned' : 'You')}</td>
+                        <td>
+                          <div>${dateStr}</div>
+                          <div style="font-size:0.72rem; color:var(--text-muted);">${timeStr}</div>
+                        </td>
+                        <td>
+                          <div style="font-weight:500;">${itemsPreview || 'No items'}</div>
+                          <div style="font-size:0.72rem; color:var(--text-muted);">${(order.items || []).length} item(s)${extraItems ? ` • +${extraItems} more` : ''}</div>
+                        </td>
+                        <td class="right price-cell">₹${(order.total || 0).toFixed(2)}</td>
+                        <td class="center">
+                            <button class="btn-secondary" onclick="event.stopPropagation(); openModal('${order._id}')" style="padding:0.4rem 0.7rem;">
+                                <i class="fa-solid fa-eye"></i> View
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            }
+
+            // ── Open Modal ───────────────────────────────
+            function openModal(id) {
+                window.selectedOrder = currentOrders.find(o => o._id === id);
+                if (!window.selectedOrder) {
+                    console.warn('openModal: order not found', id);
+                    return;
+                }
+
+                // Highlight row
+                document.querySelectorAll('.order-row').forEach(r => r.classList.remove('selected'));
+                const selRow = document.querySelector(`.order-row[data-id="${id}"]`);
+                if (selRow) selRow.classList.add('selected');
+
+                const containerBody = document.getElementById('modalBody');
+                const containerFooter = document.getElementById('modalFooter');
+                const modalTitle = document.getElementById('modalTitle');
+                const settings = VB.getSettings();
+                const isManager = VoxAPI.isManager();
+                const order = window.selectedOrder;
+
+                const subtotal = order.subtotal || 0;
+                const discount = order.discountAmt || 0;
+                const gst = order.gst || 0;
+                const total = order.total || 0;
+
+                // canSettle = order is NOT paid AND user is manager
+                const canSettle = order.status !== 'paid' && isManager;
+
+                modalTitle.textContent = `Table ${order.tableNumber} — ${order.customerName || 'Walk-in'}`;
+
+                // Build modal body
+                if (canSettle) {
+                    containerBody.innerHTML = `
+                        <div class="billing-details">
+                            ${window.generateInvoiceHTML(order, settings)}
+                            <div class="billing-form card" style="background:rgba(255,255,255,0.04); padding:1rem; border-radius:12px; margin-top:1rem; border:1px solid rgba(34,211,238,0.1);">
+                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom:1rem;">
+                                    <div>
+                                        <label style="display:block; font-size:0.75rem; color:var(--text-muted); margin-bottom:0.3rem;">Discount (₹)</label>
+                                        <input type="number" id="billDiscount" value="${discount}" class="form-input" style="width:100%">
+                                    </div>
+                                    <div>
+                                        <label style="display:block; font-size:0.75rem; color:var(--text-muted); margin-bottom:0.3rem;">GST (%)</label>
+                                        <input type="number" id="billGst" value="5" class="form-input" style="width:100%">
+                                    </div>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; font-size:1.25rem; font-weight:800; border-top:2px dashed rgba(203,213,225,0.3); padding-top:0.75rem; color:var(--text);">
+                                    <span>Grand Total</span><span id="billGrandTotal">₹${total.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        </div>`;
+                } else {
+                    containerBody.innerHTML = `
+                        <div class="billing-details">
+                            ${window.generateInvoiceHTML(order, settings)}
+                        </div>`;
+                }
+
+                // Build footer actions
+                let footerHtml = `<button class="btn-secondary" id="modalCancel">Close</button>`;
+                footerHtml += `<div style="display:flex; gap:0.5rem; flex-wrap:wrap;">`;
+                footerHtml += `<button class="btn-secondary" id="btnPrint" title="Print"><i class="fa-solid fa-print"></i></button>`;
+                footerHtml += `<button class="btn-secondary" id="btnPDF" title="PDF"><i class="fa-solid fa-file-pdf"></i></button>`;
+                footerHtml += `<button class="btn-secondary" id="btnWhatsApp" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></button>`;
+                if (canSettle) {
+                    footerHtml += `<button class="btn-primary" id="settleBtn"><i class="fa-solid fa-check-double"></i> Mark as Paid</button>`;
+                }
+                footerHtml += `</div>`;
+                containerFooter.innerHTML = footerHtml;
+
+                // Wire action buttons
+                document.getElementById('btnPrint').onclick = () => window.printInvoice(order, settings);
+                document.getElementById('btnPDF').onclick = () => window.generateInvoicePDF(order, settings);
+                document.getElementById('btnWhatsApp').onclick = () => window.generateWhatsAppMessage(order, settings);
+
+                // Wire settle calculation and button
+                if (canSettle) {
+                    const dIn = document.getElementById('billDiscount');
+                    const gIn = document.getElementById('billGst');
+
+                    if (dIn && gIn) {
+                        const calc = () => {
+                            const d = parseFloat(dIn.value) || 0;
+                            const gP = parseFloat(gIn.value) || 0;
+                            const g = (subtotal - d) * (gP / 100);
+                            const gt = subtotal - d + g;
+
+                            const gtEl = document.getElementById('billGrandTotal');
+                            if (gtEl) gtEl.textContent = `₹${gt.toFixed(2)}`;
+
+                            const discountRow = document.querySelector('.invoice-summary-row:nth-child(2) span:last-child');
+                            const gstRow = document.querySelector('.invoice-summary-row:nth-child(3) span:last-child');
+                            const grandRow = document.querySelector('.invoice-summary-row.grand-total span:last-child');
+                            if (discountRow) discountRow.textContent = `-₹${d.toFixed(2)}`;
+                            if (gstRow) gstRow.textContent = `₹${g.toFixed(2)}`;
+                            if (grandRow) grandRow.textContent = `₹${gt.toFixed(2)}`;
+
+                            window.selectedOrder.discountAmt = d;
+                            window.selectedOrder.gst = g;
+                            window.selectedOrder.total = gt;
+                            return { d, g, gt };
+                        };
+
+                        [dIn, gIn].forEach(el => el.addEventListener('input', calc));
+
+                        const settleBtn = document.getElementById('settleBtn');
+                        if (settleBtn) {
+                            settleBtn.onclick = async () => {
+                                settleBtn.disabled = true;
+                                settleBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+                                const { d, g, gt } = calc();
+                                const res = await VoxAPI.settleOrder(order._id, {
+                                    discountAmt: d, gst: g, total: gt
+                                });
+                                if (res.ok) {
+                                    VB.showToast(`Table ${order.tableNumber} settled! ₹${gt.toFixed(2)}`, 'success');
+                                    VB.addNotification(`Payment completed for Table ${order.tableNumber}`, 'success');
+                                    closeModal();
+                                    await loadOrders();
+                                } else {
+                                    VB.showToast(res.data?.message || 'Settlement failed', 'error');
+                                    settleBtn.disabled = false;
+                                    settleBtn.innerHTML = '<i class="fa-solid fa-check-double"></i> Mark as Paid';
+                                }
+                            };
+                        }
+                    }
+                }
+
+                // Render QR
+                if (window.renderInvoiceQR) window.renderInvoiceQR(order, settings);
+
+                // Show modal
+                document.getElementById('settleModal').style.display = 'flex';
+            }
+            window.openModal = openModal;
+
+            // ── Close Modal ──────────────────────────────
+            function closeModal() {
+                document.getElementById('settleModal').style.display = 'none';
+                document.querySelectorAll('.order-row').forEach(r => r.classList.remove('selected'));
+            }
+            window.closeModal = closeModal;
+
+            document.addEventListener('click', e => {
+                const overlay = document.getElementById('settleModal');
+                if (e.target.id === 'modalClose' || e.target.id === 'modalCancel' ||
+                    e.target.closest('#modalClose') || e.target.closest('#modalCancel') ||
+                    e.target === overlay) {
+                    closeModal();
+                }
+            });
+
+            // ── Status Filter Tabs ───────────────────────
+            document.querySelectorAll('#statusFilter .filter-tab').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#statusFilter .filter-tab').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentStatus = btn.dataset.filter;
+                    renderOrders();
+                });
+                btn.classList.toggle('active', btn.dataset.filter === currentStatus);
+            });
+
+            // ── Range Filter ─────────────────────────────
+            const rangeFilterEl = document.getElementById('rangeFilter');
+            if (rangeFilterEl) {
+                rangeFilterEl.value = currentRange;
+                rangeFilterEl.addEventListener('change', async () => {
+                    currentRange = rangeFilterEl.value;
+                    await loadOrders();
+                });
+            }
+
+            // ── Search ───────────────────────────────────
+            const searchInput = document.getElementById('orderSearch');
+            if (searchInput) {
+                searchInput.addEventListener('input', () => {
+                    searchQuery = searchInput.value.trim();
+                    renderOrders();
+                });
+            }
+
+            // ── CSV Export (exports filtered view) ───────
+            function exportOrdersToCSV() {
+                const filtered = getFilteredOrders();
+                if (filtered.length === 0) {
+                    VB.showToast('No orders to export', 'info');
+                    return;
+                }
+                const headers = ['Invoice No','Table','Customer','Waiter','Items','Subtotal','Discount','GST','Total','Status','Date'];
+                const rows = filtered.map(o => [
+                    o.invoiceNumber || '', o.tableNumber || '', o.customerName || '', o.waiterName || '',
+                    (o.items || []).map(i => `${i.qty}x ${i.item}`).join(' | '),
+                    o.subtotal || 0, o.discountAmt || 0, o.gst || 0, o.total || 0, o.status || '',
+                    o.createdAt ? new Date(o.createdAt).toLocaleString('en-IN') : ''
+                ]);
+                const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `voxbill-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+                VB.showToast(`Exported ${filtered.length} orders`, 'success');
+            }
+
+            const csvBtn = document.getElementById('exportCsvBtn');
+            if (csvBtn) csvBtn.addEventListener('click', exportOrdersToCSV);
+
+            // ── Initial Load ─────────────────────────────
+            loadOrders();
+        });
+    </script>
+
+</body>
+
+</html>

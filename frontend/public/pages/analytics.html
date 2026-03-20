@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics – VoxBill</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css?v=2">
+    <link rel="stylesheet" href="../css/pages.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div id="sidebarMount"></div>
+
+<main class="main" id="main">
+<div id="topbarMount"></div>
+<div class="content-wrapper">
+<div class="container">
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <div class="section-label"><i class="fa-solid fa-chart-line"></i> Insights</div>
+            <h1 class="section-title">Analytics Dashboard</h1>
+            <p class="section-subtitle">Real-time performance overview of your restaurant.</p>
+        </div>
+        <div class="header-actions">
+            <div class="range-picker">
+                <button class="range-btn active" data-days="1">Today</button>
+                <button class="range-btn" data-days="7">7 Days</button>
+                <button class="range-btn" data-days="30">30 Days</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid" id="kpiGrid">
+        <div class="kpi-card card">
+            <div class="kpi-icon teal"><i class="fa-solid fa-bag-shopping"></i></div>
+            <div class="kpi-body">
+                <p class="kpi-label">Total Orders</p>
+                <h2 class="kpi-value" id="kpiOrders">0</h2>
+                <p class="kpi-sub" id="kpiOrdersSub">Today</p>
+            </div>
+        </div>
+        <div class="kpi-card card">
+            <div class="kpi-icon purple"><i class="fa-solid fa-indian-rupee-sign"></i></div>
+            <div class="kpi-body">
+                <p class="kpi-label">Total Revenue</p>
+                <h2 class="kpi-value" id="kpiRevenue">₹0</h2>
+                <p class="kpi-sub" id="kpiRevSub">Today</p>
+            </div>
+        </div>
+        <div class="kpi-card card">
+            <div class="kpi-icon blue"><i class="fa-solid fa-fire-flame-curved"></i></div>
+            <div class="kpi-body">
+                <p class="kpi-label">Most Ordered</p>
+                <h2 class="kpi-value kpi-small" id="kpiTopItem">--</h2>
+                <p class="kpi-sub" id="kpiTopSub">N/A</p>
+            </div>
+        </div>
+        <div class="kpi-card card">
+            <div class="kpi-icon green">
+                <i class="fa-solid fa-calculator"></i>
+            </div>
+            <div class="kpi-body">
+                <p class="kpi-label">Avg Order Value</p>
+                <h2 class="kpi-value" id="kpiAvg">₹0</h2>
+                <p class="kpi-sub" id="kpiAvgSub">Per order</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="charts-row">
+        <!-- Orders per Hour -->
+        <div class="card chart-card">
+            <div class="chart-card-header">
+                <h3>Orders by Hour <span class="chart-sub" id="ordersHourLabel">Today</span></h3>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="ordersHourChart"></canvas>
+            </div>
+        </div>
+        <!-- Revenue by Day -->
+        <div class="card chart-card">
+            <div class="chart-card-header">
+                <h3>Revenue Trend <span class="chart-sub" id="revDayLabel">Last 7 days</span></h3>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="revDayChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Items Chart -->
+    <div class="card chart-card chart-card-full">
+        <div class="chart-card-header">
+            <h3>Top Selling Items <span class="chart-sub" id="topItemsLabel">All time</span></h3>
+        </div>
+        <div class="chart-wrapper chart-wrapper-md">
+            <canvas id="topItemsChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Demo Data Notice -->
+    <div class="demo-notice" id="demoNotice" style="display:none">
+        <i class="fa-solid fa-circle-info"></i>
+        No real orders found. Showing sample data. Place some orders from the <a href="../pages/index.html">Dashboard</a> to see real analytics.
+    </div>
+
+</div>
+</div>
+</main>
+
+<script src="../js/api.js"></script>
+<script src="../js/shared.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('sidebarMount').innerHTML = VB.buildSidebar('Analytics');
+    document.getElementById('topbarMount').innerHTML  = VB.buildTopbar('Analytics');
+    VB.initSidebarBehavior();
+    VB.initGlobalSearch();
+    VB.initManagerVoice();
+    VB.initSSENotifications();
+
+    let currentDays = 1;
+
+    // Chart.js defaults for dark theme
+    Chart.defaults.color = '#94A3B8';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+    Chart.defaults.font.family = 'Inter';
+
+    let charts = {};
+
+    function destroyCharts() {
+        Object.values(charts).forEach(c => c && c.destroy());
+        charts = {};
+    }
+
+    async function renderAll(days) {
+        currentDays = days;
+        destroyCharts();
+
+        let data = null;
+        let hasData = false;
+
+        // ── Try MongoDB backend first (if logged in) ──────
+        if (window.VoxAPI && VoxAPI.isLoggedIn()) {
+            try {
+                const r = await VoxAPI.getAnalytics(days);
+                if (r.ok && r.data && r.data.data) {
+                    data = r.data.data;
+                    hasData = (data.totalOrders > 0);
+                }
+            } catch(e) {}
+        }
+
+        // ── Fallback: calculate from localStorage orders ───
+        if (!data) {
+            const allOrders = VB.getOrders();
+            let orders;
+            const rangeLabel = days === 1 ? 'Today' : `Last ${days} days`;
+
+            if (days === 1) {
+                orders = VB.getOrdersForDay(VB.todayStr());
+            } else {
+                orders = VB.getOrdersForRange(days);
+            }
+
+            hasData = orders.length > 0;
+
+            // Build analytics data object from localStorage orders
+            const totalRevenue = orders.reduce((s, o) => s + (o.grandTotal || 0), 0);
+            const topItem      = VB.getMostOrderedItem(orders);
+            const topItems     = VB.getTopItems(orders, 8);
+            const revByDay     = VB.getRevenueByDay(Math.min(days, 30));
+            const hourly       = Array(24).fill(0);
+            if (days === 1) {
+                orders.forEach(o => { const h = new Date(o.timestamp).getHours(); hourly[h]++; });
+            }
+
+            data = {
+                totalOrders:   orders.length,
+                totalRevenue,
+                avgOrderVal:   orders.length ? totalRevenue / orders.length : 0,
+                topItem:       topItem ? { name: topItem.name, count: topItem.count } : null,
+                hourlyBuckets: hourly,
+                revenueByDay:  revByDay,
+                topItems
+            };
+        }
+
+        const rangeLabel = days === 1 ? 'Today' : `Last ${days} days`;
+
+        // ── Demo data fallback if still no data ───────────
+        document.getElementById('demoNotice').style.display = hasData ? 'none' : 'flex';
+        if (!hasData) {
+            const demoOrds = generateDemoOrders(days);
+            const demoRev  = demoOrds.reduce((s, o) => s + (o.grandTotal || 0), 0);
+            const demoTopI = VB.getMostOrderedItem(demoOrds);
+            data = {
+                totalOrders:   demoOrds.length,
+                totalRevenue:  demoRev,
+                avgOrderVal:   demoOrds.length ? demoRev / demoOrds.length : 0,
+                topItem:       demoTopI ? { name: demoTopI.name, count: demoTopI.count } : null,
+                hourlyBuckets: [0,0,0,0,0,0,1,2,3,4,5,6,5,4,6,7,5,3,4,3,2,1,0,0],
+                revenueByDay: VB.getRevenueByDay(Math.min(days,30))
+                    .map((r, i) => ({
+                        ...r,
+                        revenue: [1200,1850,2100,1650,2800,3200,2400,
+                                  1900,2300,1750,2600,3100,2450,1800,2200][i % 15]
+                    })),
+                topItems:      [{ name: 'Paneer Butter Masala', qty: 24 }, { name: 'Butter Naan', qty: 18 }, { name: 'Coke', qty: 15 }, { name: 'Dal Tadka', qty: 12 }, { name: 'Lassi', qty: 9 }]
+            };
+        }
+
+        // ── KPIs ───────────────────────────────────────────
+        document.getElementById('kpiOrders').textContent  = data.totalOrders;
+        document.getElementById('kpiRevenue').textContent = `₹${(data.totalRevenue || 0).toFixed(0)}`;
+        document.getElementById('kpiAvg').textContent     = `₹${(data.avgOrderVal || 0).toFixed(0)}`;
+        document.getElementById('kpiTopItem').textContent = data.topItem ? data.topItem.name : '--';
+        document.getElementById('kpiTopSub').textContent  = data.topItem ? `${data.topItem.count} orders` : 'No orders yet';
+        ['kpiOrdersSub','kpiRevSub','kpiAvgSub'].forEach(id => document.getElementById(id).textContent = rangeLabel);
+
+        // ── Chart 1: Orders by hour or by day ─────────────
+        const hourLabels = Array.from({length: 24}, (_, i) => `${i}:00`);
+        document.getElementById('ordersHourLabel').textContent = days === 1 ? 'Today' : rangeLabel;
+        const c1ctx = document.getElementById('ordersHourChart').getContext('2d');
+        charts.c1 = new Chart(c1ctx, {
+            type: 'bar',
+            data: {
+                labels: days === 1 ? hourLabels : (data.revenueByDay || []).map(r => r.label),
+                datasets: [{ label: 'Orders',
+                    data: days === 1 ? (data.hourlyBuckets || []) : (data.revenueByDay || []).map(r => r.count || 0),
+                    backgroundColor: 'rgba(34,211,238,0.25)', borderColor: '#22D3EE',
+                    borderWidth: 1.5, borderRadius: 5 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.04)' } },
+                    y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.04)' } }
+                }
+            }
+        });
+
+        // ── Chart 2: Revenue trend ─────────────────────────
+        document.getElementById('revDayLabel').textContent = `Last ${Math.min(days,30)} days`;
+        const c2ctx = document.getElementById('revDayChart').getContext('2d');
+        charts.c2 = new Chart(c2ctx, {
+            type: 'line',
+            data: {
+                labels: (data.revenueByDay || []).map(r => r.label),
+                datasets: [{ label: 'Revenue (₹)',
+                    data: (data.revenueByDay || []).map(r => r.revenue || 0),
+                    borderColor: '#8B5CF6', backgroundColor: 'rgba(139,92,246,0.12)',
+                    fill: true, tension: 0.4, pointBackgroundColor: '#8B5CF6', pointRadius: 4 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.04)' } },
+                    y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } }
+                }
+            }
+        });
+
+        // ── Chart 3: Top items ─────────────────────────────
+        document.getElementById('topItemsLabel').textContent = rangeLabel;
+        const colors = ['#22D3EE','#8B5CF6','#3B82F6','#f59e0b','#22c55e','#f43f5e','#a78bfa','#38bdf8'];
+        const c3ctx  = document.getElementById('topItemsChart').getContext('2d');
+        charts.c3 = new Chart(c3ctx, {
+            type: 'bar',
+            data: {
+                labels: (data.topItems || []).map(i => i.name),
+                datasets: [{ label: 'Qty Ordered',
+                    data: (data.topItems || []).map(i => i.qty),
+                    backgroundColor: colors, borderRadius: 6 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } },
+                    y: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    function getDailyOrderCounts(orders, days) {
+        const limit = Math.min(days, 7);
+        return Array.from({length: limit}, (_, i) => {
+            const d = new Date();
+            d.setDate(d.getDate() - (limit - 1 - i));
+            return orders.filter(o => o.timestamp.startsWith(d.toISOString().slice(0,10))).length;
+        });
+    }
+
+    function generateDemoOrders(days) {
+        const items = VB.getMenu().slice(0, 5);
+        const orders = [];
+        for (let d = 0; d < Math.min(days, 7); d++) {
+            const count = Math.floor(Math.random() * 8) + 2;
+            for (let i = 0; i < count; i++) {
+                const item = items[Math.floor(Math.random() * items.length)];
+                const qty  = Math.floor(Math.random() * 3) + 1;
+                const date = new Date();
+                date.setDate(date.getDate() - d);
+                date.setHours(10 + Math.floor(Math.random() * 12));
+                orders.push({
+                    id: Date.now() + i,
+                    timestamp: date.toISOString(),
+                    items: [{ item: item.name, qty, price: item.price, total: qty * item.price }],
+                    grandTotal: qty * item.price * 1.05
+                });
+            }
+        }
+        return orders;
+    }
+
+    // Range buttons
+    document.querySelectorAll('.range-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderAll(parseInt(btn.dataset.days));
+        });
+    });
+
+    renderAll(1);
+});
+</script>
+</body>
+</html>

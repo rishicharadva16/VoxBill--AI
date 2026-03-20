@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Tables – VoxBill</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css?v=2">
+    <link rel="stylesheet" href="../css/pages.css">
+    <style>
+        .tables-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .table-card-status {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            border: 2px solid transparent;
+            background: rgba(255, 255, 255, 0.03);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .table-card-status:hover {
+            transform: translateY(-5px);
+            filter: brightness(1.1);
+        }
+
+        .table-card-status .t-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+            opacity: 0.3;
+        }
+
+        .table-card-status .t-num {
+            font-size: 1.25rem;
+            font-weight: 800;
+        }
+
+        .table-card-status .t-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        /* Status Colors */
+        .ts-available {
+            color: #10b981;
+            border-color: rgba(16, 185, 129, 0.2);
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .ts-available .t-icon {
+            opacity: 0.8;
+        }
+
+        .ts-ordering {
+            color: #f59e0b;
+            border-color: rgba(245, 158, 11, 0.3);
+            background: rgba(245, 158, 11, 0.1);
+            animation: pulse-border 2s infinite;
+        }
+
+        .ts-ordering .t-icon {
+            opacity: 0.8;
+        }
+
+        .ts-draft {
+            color: #0D9488;
+            border-color: rgba(13, 148, 136, 0.3);
+            background: rgba(13, 148, 136, 0.08);
+        }
+
+        .ts-draft .t-icon {
+            opacity: 0.7;
+        }
+
+        .ts-ready_for_billing {
+            color: #ef4444;
+            border-color: rgba(239, 68, 68, 0.3);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .ts-ready_for_billing .t-icon {
+            opacity: 1;
+        }
+
+        @keyframes pulse-border {
+            0% {
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+            }
+        }
+
+        .status-legend {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .dot.green {
+            background: #10b981;
+        }
+
+        .dot.yellow {
+            background: #f59e0b;
+        }
+
+        .dot.red {
+            background: #ef4444;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="sidebarMount"></div>
+
+    <main class="main" id="main">
+        <div id="topbarMount"></div>
+        <div class="content-wrapper">
+            <div class="container">
+
+                <div class="page-header">
+                    <div>
+                        <div class="section-label"><i class="fa-solid fa-table-cells"></i> Floor Map</div>
+                        <h1 class="section-title">Live Table Status</h1>
+                        <p class="section-subtitle">Real-time overview of all tables in the restaurant.</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn-secondary" onclick="loadStatuses()">
+                            <i class="fa-solid fa-rotate"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="status-legend">
+                    <div class="legend-item"><span class="dot green"></span> Available</div>
+                    <div class="legend-item"><span class="dot" style="background:#0D9488"></span> Draft</div>
+                    <div class="legend-item"><span class="dot yellow"></span> Ordering</div>
+                    <div class="legend-item"><span class="dot red"></span> Ready for Billing</div>
+                </div>
+
+                <div class="tables-grid" id="tablesGrid">
+                    <!-- Tables generated by JS -->
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/shared.js"></script>
+    <script src="../js/global.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('sidebarMount').innerHTML = VB.buildSidebar('Tables');
+            document.getElementById('topbarMount').innerHTML = VB.buildTopbar('Live Tables');
+            VB.initSidebarBehavior();
+            VB.initOfflineBanner();
+            VB.initGlobalSearch();
+            VB.initManagerVoice();
+            VB.initSSENotifications();
+
+            // Auto-refresh every 10 seconds (Fix 16: faster)
+            setInterval(loadStatuses, 10000);
+            loadStatuses();
+
+            if (!VoxAPI.isManager()) {
+                const legend = document.querySelector('.status-legend');
+                if (legend) legend.style.display = 'none';
+
+                const subtitle = document.querySelector('.section-subtitle');
+                if (subtitle) subtitle.innerText = 'Select a table to start a new order.';
+            }
+        });
+
+        async function loadStatuses() {
+            const grid = document.getElementById('tablesGrid');
+            const res = await VoxAPI.getTablesStatus();
+            const isManager = VoxAPI.isManager();
+            const currentUser = VoxAPI.getUser();
+
+            if (!res.ok) {
+                grid.innerHTML = '<p style="color:#f87171">Failed to load table statuses.</p>';
+                return;
+            }
+
+            const statuses = res.data.data;
+            grid.innerHTML = '';
+
+            for (let i = 1; i <= 20; i++) {
+                const info = statuses[i] || { status: 'available' };
+                const status = typeof info === 'string' ? info : info.status;
+                const createdBy = typeof info === 'object' ? info.createdBy : null;
+
+                const card = document.createElement('div');
+                card.className = `table-card-status ts-${status}`;
+
+                // Fix 21: Waiters cannot access tables served by other waiters
+                let clickHandler = '';
+                let blockedByOther = false;
+                if (!isManager) {
+                    const isOccupiedByOther = status !== 'available' && createdBy && currentUser && createdBy !== currentUser._id;
+                    
+                    if (isOccupiedByOther && (status === 'ready_for_billing' || status === 'paid')) {
+                        blockedByOther = true;
+                        card.style.opacity = '0.4';
+                        card.style.cursor = 'not-allowed';
+                        clickHandler = `onclick="VB.showToast('This table is being settled by another waiter.','error')"`;
+                    } else if (status === 'draft' || status === 'ordering') {
+                        // Allow any waiter to resume or join a draft/ordering session
+                        clickHandler = `onclick="window.location.href='../pages/voice.html?table=${i}&resume=true'"`;
+                    } else {
+                        clickHandler = `onclick="window.location.href='../pages/voice.html?table=${i}'"`;
+                    }
+                } else {
+                    clickHandler = `onclick="window.location.href='../pages/orders.html?table=${i}'"`;
+                }
+
+                card.innerHTML = `
+            <div ${clickHandler} style="height:100%; width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                <div class="t-icon"><i class="fa-solid fa-chair"></i></div>
+                <div class="t-num">${i}</div>
+                <div class="t-label">${status.replace(/_/g, ' ')}${blockedByOther ? ' (Other)' : ''}</div>
+            </div>
+        `;
+
+                grid.appendChild(card);
+            }
+        }
+    </script>
+</body>
+</html>

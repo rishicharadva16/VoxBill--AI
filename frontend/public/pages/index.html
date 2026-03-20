@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard – VoxBill</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css?v=2">
+    <link rel="stylesheet" href="../css/pages.css">
+</head>
+
+<body>
+    <div id="sidebarMount"></div>
+
+    <main class="main" id="main">
+        <div id="topbarMount"></div>
+
+        <div class="content-wrapper">
+            <div class="container">
+                <div class="page-header">
+                    <div>
+                        <div class="section-label"><i class="fa-solid fa-gauge"></i> Overview</div>
+                        <h1 class="section-title">Dashboard</h1>
+                        <p class="section-subtitle" id="dashboardWelcome">Welcome back!</p>
+                    </div>
+                </div>
+
+                <!-- SECTION 1: KPI CARDS -->
+                <div class="dashboard-stats">
+                    <div class="card stat-card">
+                        <div class="stat-icon" style="background:var(--info-dim);color:var(--info)"><i
+                                class="fa-solid fa-receipt"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label">Today's Orders</span>
+                            <h2 class="stat-value" id="statOrders">0</h2>
+                        </div>
+                    </div>
+                    <div class="card stat-card" data-role="manager">
+                        <div class="stat-icon" style="background:var(--purple-dim);color:var(--purple)"><i
+                                class="fa-solid fa-indian-rupee-sign"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label">Today's Revenue</span>
+                            <h2 class="stat-value" id="statRevenue">₹0</h2>
+                        </div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="stat-icon" style="background:var(--success-dim);color:var(--success)"><i
+                                class="fa-solid fa-fire"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-label">Top Item</span>
+                            <h2 class="stat-value" id="statTopItem" style="font-size:1.1rem">—</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 2: BUSINESS INSIGHTS -->
+                <div class="dashboard-section-title">Business Insights</div>
+                <div class="business-insights">
+                    <div class="insight-card">
+                        <span class="insight-label">Active Tables</span>
+                        <div class="insight-value" id="insightActiveTables">0</div>
+                    </div>
+                    <div class="insight-card">
+                        <span class="insight-label">Open Orders</span>
+                        <div class="insight-value" id="insightOpenOrders">0</div>
+                    </div>
+                    <div class="insight-card" data-role="manager">
+                        <span class="insight-label">Average Bill</span>
+                        <div class="insight-value" id="insightAvgBill">₹0</div>
+                    </div>
+                </div>
+
+                <!-- SECTION 3: RECENT TRANSACTIONS -->
+                <div class="card table-card" style="margin-top: 2rem;">
+                    <div class="card-header">
+                        <div class="card-header-icon purple"><i class="fa-solid fa-history"></i></div>
+                        <h3>Recent Transactions</h3>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Table</th>
+                                <th>Items Count</th>
+                                <th class="right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentOrdersBody">
+                            <tr>
+                                <td colspan="4" class="center">Loading orders...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/shared.js"></script>
+    <script src="../js/global.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('sidebarMount').innerHTML = VB.buildSidebar('Dashboard');
+            document.getElementById('topbarMount').innerHTML = VB.buildTopbar('Dashboard');
+            VB.initSidebarBehavior();
+            VB.initOfflineBanner();
+            VB.initGlobalSearch();
+            VB.initManagerVoice();
+            VB.initSSENotifications();
+
+            const user = VoxAPI.getUser();
+            if (user) document.getElementById('dashboardWelcome').textContent = `Welcome back, ${user.name}!`;
+
+            const isManager = VoxAPI.isManager();
+
+            // Hide manager-only elements
+            if (!isManager) {
+                document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = 'none');
+            }
+
+            function showDashboardSkeleton() {
+                ['statOrders','statRevenue','statTopItem','statTables','insightActiveTables','insightOpenOrders','insightAvgBill'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.innerHTML = '<div class="skeleton sk-line" style="width:60px;height:20px;display:inline-block;"></div>';
+                    }
+                });
+            }
+
+            async function loadDashboard() {
+                showDashboardSkeleton();
+                try {
+                    const res = await VoxAPI.getOrders('today');
+                    if (res.ok) {
+                        const orders = res.data.data || res.data;
+                        const paidOrders = orders.filter(o => o.status === 'paid');
+                        const openOrders = orders.filter(o => o.status !== 'paid');
+
+                        // MAIN KPIs
+                        const revenue = paidOrders.reduce((s, o) => s + (o.total || 0), 0);
+                        document.getElementById('statOrders').textContent = orders.length;
+                        if (isManager) document.getElementById('statRevenue').textContent = `₹${revenue.toFixed(0)}`;
+
+                        // Top item calc
+                        const counts = {};
+                        orders.forEach(o => o.items.forEach(i => counts[i.item] = (counts[i.item] || 0) + i.qty));
+                        let topItems = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+                        document.getElementById('statTopItem').textContent = topItems.length ? topItems[0][0] : '—';
+
+                        // BUSINESS INSIGHTS
+                        const activeTablesSet = new Set(openOrders.map(o => o.tableNumber));
+                        document.getElementById('insightActiveTables').textContent = activeTablesSet.size;
+                        document.getElementById('insightOpenOrders').textContent = openOrders.length;
+
+                        if (isManager) {
+                            const avgBill = paidOrders.length > 0 ? (revenue / paidOrders.length) : 0;
+                            document.getElementById('insightAvgBill').textContent = `₹${avgBill.toFixed(0)}`;
+                        }
+
+                        // RECENT TRANSACTIONS
+                        const body = document.getElementById('recentOrdersBody');
+                        if (orders.length === 0) {
+                            body.innerHTML = '<tr><td colspan="4" class="center">No orders today.</td></tr>';
+                        } else {
+                            body.innerHTML = orders.slice(0, 8).map((o) => {
+                                const itemsSummary = o.items.map(i => `${i.qty}\u00d7 ${i.item}`).join(', ');
+                                return `
+                            <tr>
+                                <td>${new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                                <td><span class="status-dot ${o.status}"></span> Table ${o.tableNumber}</td>
+                                <td class="items-summary" title="${itemsSummary}">${itemsSummary}</td>
+                                <td class="right" style="font-weight:700">₹${(o.total || 0).toFixed(0)}</td>
+                            </tr>
+                        `;
+                            }).join('');
+                        }
+                    }
+                } catch (e) { console.warn('Dashboard sync failed', e); }
+            }
+
+            loadDashboard();
+            setInterval(loadDashboard, 60000);
+        });
+    </script>
+</body>
+
+</html>

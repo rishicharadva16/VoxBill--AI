@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings – VoxBill</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css?v=2">
+    <link rel="stylesheet" href="../css/pages.css">
+</head>
+
+<body>
+    <div id="sidebarMount"></div>
+
+    <main class="main" id="main">
+        <div id="topbarMount"></div>
+        <div class="content-wrapper">
+            <div class="container">
+
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div>
+                        <div class="section-label"><i class="fa-solid fa-gear"></i> Configuration</div>
+                        <h1 class="section-title">Settings</h1>
+                        <p class="section-subtitle">Configure your restaurant details. These will automatically appear
+                            on invoices.</p>
+                    </div>
+                    <button class="btn-primary" id="saveAllBtn"><i class="fa-solid fa-floppy-disk"></i> Save All
+                        Settings</button>
+                </div>
+
+                <div class="filter-tabs" id="settingsTabs" style="margin-bottom:1.5rem;">
+                    <button class="filter-tab active" data-tab="restaurant" onclick="switchTab('restaurant')">
+                        Restaurant
+                    </button>
+                    <button class="filter-tab" data-tab="billing" onclick="switchTab('billing')">
+                        Billing
+                    </button>
+                    <button class="filter-tab" data-tab="staff" onclick="switchTab('staff')">
+                        Staff & PIN
+                    </button>
+                    <button class="filter-tab" data-tab="danger" onclick="switchTab('danger')">
+                        Data
+                    </button>
+                </div>
+
+                <div id="tab-restaurant" class="settings-tab">
+                    <!-- Restaurant Details Card -->
+                    <div class="card settings-card">
+                        <div class="settings-card-header">
+                            <div class="card-header-icon teal"><i class="fa-solid fa-store"></i></div>
+                            <h3>Restaurant Details</h3>
+                        </div>
+                        <div class="settings-body">
+                            <div class="field-group">
+                                <label>Restaurant Name</label>
+                                <input type="text" id="sRestName" class="form-input" placeholder="e.g. Spice Garden">
+                            </div>
+                            <div class="field-group">
+                                <label>Address</label>
+                                <textarea id="sAddress" class="form-input form-textarea"
+                                    placeholder="Full address with city and pincode" rows="2"></textarea>
+                            </div>
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <label>Phone Number</label>
+                                    <input type="tel" id="sPhone" class="form-input" placeholder="+91 98765 43210">
+                                </div>
+                                <div class="field-group">
+                                    <label>Email</label>
+                                    <input type="email" id="sEmail" class="form-input"
+                                        placeholder="owner@restaurant.com">
+                                </div>
+                            </div>
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <label>GST Number</label>
+                                    <input type="text" id="sGstNo" class="form-input" placeholder="27AABCV1234M1Z1">
+                                </div>
+                                <div class="field-group" style="visibility:hidden"></div>
+                            </div>
+
+                            <!-- Logo Upload -->
+                            <div class="field-group">
+                                <label>Restaurant Logo</label>
+                                <div class="logo-upload-area" id="logoArea">
+                                    <img id="logoPreview" class="logo-preview" src="" alt="">
+                                    <div class="logo-placeholder" id="logoPlaceholder">
+                                        <i class="fa-solid fa-image"></i>
+                                        <span>Click to upload logo</span>
+                                        <span class="hint">PNG or JPG, max 2MB</span>
+                                    </div>
+                                    <input type="file" id="logoInput" accept="image/*" style="display:none">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-billing" class="settings-tab" style="display:none;">
+                    <!-- Invoice Settings Card -->
+                    <div class="card settings-card">
+                        <div class="settings-card-header">
+                            <div class="card-header-icon purple"><i class="fa-solid fa-file-invoice"></i></div>
+                            <h3>Invoice Configuration</h3>
+                        </div>
+                        <div class="settings-body">
+                            <!-- Template -->
+                            <div class="field-group">
+                                <label>Default Invoice Template</label>
+                                <div class="template-pills" id="templatePills">
+                                    <button class="template-pill" data-t="modern">Modern</button>
+                                    <button class="template-pill" data-t="classic">Classic</button>
+                                    <button class="template-pill" data-t="premium">Premium</button>
+                                    <button class="template-pill" data-t="colorful">Colorful</button>
+                                </div>
+                            </div>
+
+                            <!-- GST Toggle -->
+                            <div class="field-group">
+                                <label>Tax Settings</label>
+                                <div class="gst-config-row">
+                                    <div class="gst-toggle-box">
+                                        <span>Enable GST</span>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="sGstEnabled" checked>
+                                            <span class="toggle-track"></span>
+                                        </label>
+                                    </div>
+                                    <div class="field-group" style="flex:1">
+                                        <label>Default GST %</label>
+                                        <input type="number" id="sGstPct" class="form-input" placeholder="5" min="0"
+                                            max="28">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Footer Message -->
+                            <div class="field-group">
+                                <label>Invoice Footer Message</label>
+                                <input type="text" id="sFooterMsg" class="form-input"
+                                    placeholder="Thank you for dining with us!">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-staff" class="settings-tab" style="display:none;">
+                    <!-- Staff PIN card -->
+                    <div class="card settings-card">
+                        <div class="settings-card-header">
+                            <div class="card-header-icon orange"><i class="fa-solid fa-key"></i></div>
+                            <h3>Staff & PIN Settings</h3>
+                        </div>
+                        <div class="settings-body">
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <label>Restaurant PIN (6-digit)</label>
+                                    <div style="display:flex; gap:0.5rem; align-items:center;">
+                                        <input type="text" id="sPin" class="form-input" placeholder="123456"
+                                            maxlength="6" style="max-width:140px; letter-spacing:4px;
+                                          font-weight:700; font-size:1.1rem;">
+                                        <button type="button" class="btn-secondary" data-tip="Generate a new random 6-digit PIN for staff login" onclick="document.getElementById('sPin').value =
+                                    String(Math.floor(100000 + Math.random() * 900000));
+                                    VB.showToast('New PIN generated! Save settings to apply it.')">
+                                            <i class="fa-solid fa-shuffle"></i> Generate
+                                        </button>
+                                    </div>
+                                    <span class="hint"
+                                        style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">Used for
+                                        staff login lookup</span>
+                                </div>
+                                <div class="field-group">
+                                    <label>UPI Payment ID</label>
+                                    <input type="text" id="sUpi" class="form-input" placeholder="restaurant@upi">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-danger" class="settings-tab" style="display:none;">
+                    <!-- Data Management card -->
+                    <div class="card settings-card danger-card">
+                        <div class="settings-card-header">
+                            <div class="card-header-icon red"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                            <h3>Data Management</h3>
+                        </div>
+                        <div class="settings-body">
+                            <p class="danger-hint">These actions are irreversible. Please proceed carefully.</p>
+                            <div class="danger-actions">
+                                <button class="btn-danger" id="clearOrdersBtn" data-tip="Permanently delete all order history">
+                                    <i class="fa-solid fa-trash"></i> Clear All Orders
+                                </button>
+                                <button class="btn-danger" id="resetMenuBtn" data-tip="Delete all menu items and reset to defaults">
+                                    <i class="fa-solid fa-rotate-left"></i> Reset Menu to Default
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/shared.js"></script>
+    <script>
+        function switchTab(tab) {
+            document.querySelectorAll('.settings-tab')
+                .forEach(t => t.style.display = 'none');
+            document.getElementById('tab-' + tab)
+                .style.display = 'block';
+            document.querySelectorAll(
+                '#settingsTabs .filter-tab')
+                .forEach(b => {
+                    b.classList.toggle('active',
+                        b.dataset.tab === tab);
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // ── Build layout from shared
+            document.getElementById('sidebarMount').innerHTML = VB.buildSidebar('Settings');
+            document.getElementById('topbarMount').innerHTML = VB.buildTopbar('Settings');
+            VB.initSidebarBehavior();
+            VB.initOfflineBanner();
+            VB.initGlobalSearch();
+            VB.initManagerVoice();
+            VB.initSSENotifications();
+
+            const s = VB.getSettings();
+
+            // ── Prefill fields
+            document.getElementById('sRestName').value = s.restaurantName;
+            document.getElementById('sAddress').value = s.address;
+            document.getElementById('sPhone').value = s.phone;
+            document.getElementById('sEmail').value = s.email;
+            document.getElementById('sGstNo').value = s.gstNumber;
+            document.getElementById('sUpi').value = s.upiId;
+            document.getElementById('sPin').value = s.restaurantPin || ''; // Fix 17
+            document.getElementById('sGstEnabled').checked = s.gstEnabled;
+            document.getElementById('sGstPct').value = s.gstPercent;
+            document.getElementById('sFooterMsg').value = s.footerMsg;
+
+            // ── Logo
+            if (s.logoDataUrl) {
+                document.getElementById('logoPreview').src = s.logoDataUrl;
+                document.getElementById('logoPreview').style.display = 'block';
+                document.getElementById('logoPlaceholder').style.display = 'none';
+            }
+            document.getElementById('logoArea').addEventListener('click', () => document.getElementById('logoInput').click());
+            document.getElementById('logoInput').addEventListener('change', e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    document.getElementById('logoPreview').src = ev.target.result;
+                    document.getElementById('logoPreview').style.display = 'block';
+                    document.getElementById('logoPlaceholder').style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            });
+
+            // ── Template pills
+            const pills = document.querySelectorAll('.template-pill');
+            function setActivePill(val) {
+                pills.forEach(p => p.classList.toggle('active', p.dataset.t === val));
+            }
+            setActivePill(s.invoiceTemplate);
+            pills.forEach(p => p.addEventListener('click', () => setActivePill(p.dataset.t)));
+
+            // ── Save
+            document.getElementById('saveAllBtn').addEventListener('click', () => {
+                const logoSrc = document.getElementById('logoPreview').src;
+                const activePill = document.querySelector('.template-pill.active');
+                VB.saveSettings({
+                    restaurantName: document.getElementById('sRestName').value.trim() || 'VoxBill Restaurant',
+                    address: document.getElementById('sAddress').value.trim(),
+                    phone: document.getElementById('sPhone').value.trim(),
+                    email: document.getElementById('sEmail').value.trim(),
+                    gstNumber: document.getElementById('sGstNo').value.trim(),
+                    upiId: document.getElementById('sUpi').value.trim(),
+                    gstEnabled: document.getElementById('sGstEnabled').checked,
+                    gstPercent: parseFloat(document.getElementById('sGstPct').value) || 5,
+                    footerMsg: document.getElementById('sFooterMsg').value.trim(),
+                    restaurantPin: document.getElementById('sPin').value.trim(), // Fix 17
+                    invoiceTemplate: activePill ? activePill.dataset.t : 'modern',
+                    logoDataUrl: logoSrc && logoSrc.startsWith('data:') ? logoSrc : ''
+                });
+                VB.showToast('Settings saved successfully!');
+            });
+
+            // ── Danger zone (Fix 19)
+            document.getElementById('clearOrdersBtn').addEventListener('click', async () => {
+                const ok = await VB.showConfirm({
+                    title: 'Clear all orders?',
+                    message: 'This will permanently delete all order history from the database. This cannot be undone.',
+                    confirmText: 'Clear All',
+                    cancelText: 'Cancel',
+                    type: 'danger'
+                });
+                if (!ok) return;
+                VB.clearOrders();
+                const res = await VoxAPI.clearAllOrders();
+                if (res.ok) {
+                    VB.showToast('All orders cleared.', 'info');
+                } else {
+                    VB.showToast('Failed to clear orders.', 'error');
+                }
+            });
+
+            document.getElementById('resetMenuBtn').addEventListener('click', async () => {
+                const ok = await VB.showConfirm({
+                    title: 'Reset menu to defaults?',
+                    message: 'All custom menu items will be permanently deleted.',
+                    confirmText: 'Reset Menu',
+                    cancelText: 'Cancel',
+                    type: 'danger'
+                });
+                if (!ok) return;
+                localStorage.removeItem('vb_menu');
+                const res = await VoxAPI.clearAllMenu();
+                if (res.ok) {
+                    VB.showToast('Menu reset. Reload the page.', 'info');
+                } else {
+                    VB.showToast('Database menu clear failed.', 'error');
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

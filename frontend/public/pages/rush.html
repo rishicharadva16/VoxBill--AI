@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rush Mode – VoxBill</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css?v=2">
+    <link rel="stylesheet" href="../css/pages.css">
+    <style>
+        .rush-hero {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 2.5rem 1.5rem;
+            text-align: center;
+        }
+
+        .rush-hero-icon {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(139, 92, 246, 0.15));
+            border: 1.5px solid rgba(34, 211, 238, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            color: #22D3EE;
+        }
+
+        .rush-hero h2 {
+            margin: 0;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .rush-hero p {
+            margin: 0;
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            max-width: 420px;
+        }
+
+        .rush-drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-lg);
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            position: relative;
+        }
+
+        .rush-drop-zone:hover,
+        .rush-drop-zone.dragover {
+            border-color: #22D3EE;
+            background: rgba(34, 211, 238, 0.04);
+        }
+
+        .rush-drop-zone i {
+            font-size: 2.5rem;
+            color: #22D3EE;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .rush-preview {
+            margin-top: 1.5rem;
+            text-align: center;
+        }
+
+        .rush-preview img {
+            max-width: 100%;
+            max-height: 260px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            object-fit: contain;
+        }
+
+        .rush-loading {
+            text-align: center;
+            padding: 3rem 1rem;
+        }
+
+        .rush-loading .spinner-ring {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(34, 211, 238, 0.2);
+            border-top-color: #22D3EE;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .rush-review-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        @media (max-width: 600px) {
+            .rush-review-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .rush-review-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .rush-review-table th {
+            text-align: left;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            padding: 0.6rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .rush-review-table td {
+            padding: 0.6rem 0.75rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 0.88rem;
+            vertical-align: middle;
+        }
+
+        .confidence-high {
+            color: #22D3EE;
+        }
+
+        .confidence-low {
+            color: #f59e0b;
+        }
+
+        .rush-total-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            border-top: 2px dashed rgba(203, 213, 225, 0.2);
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--text);
+            margin-top: 1rem;
+        }
+
+        .rush-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        /* Smart UI overrides */
+        body.ui-smart .rush-hero-icon {
+            background: linear-gradient(135deg, rgba(13, 148, 136, 0.12), rgba(139, 92, 246, 0.08));
+            border-color: rgba(13, 148, 136, 0.2);
+            color: var(--teal);
+        }
+
+        body.ui-smart .rush-drop-zone:hover {
+            border-color: var(--teal);
+            background: rgba(13, 148, 136, 0.04);
+        }
+
+        body.ui-smart .confidence-high {
+            color: var(--teal);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="sidebarMount"></div>
+
+    <main class="main" id="main">
+        <div id="topbarMount"></div>
+        <div class="content-wrapper">
+            <div class="container">
+
+                <!-- Page Header -->
+                <div class="page-header" style="margin-bottom: 1rem;">
+                    <div class="page-header-left">
+                        <h1 class="page-title">Rush Mode</h1>
+                        <p class="page-subtitle">Paper-to-Order — Snap, extract, inject</p>
+                    </div>
+                </div>
+
+                <!-- Step 1: Upload -->
+                <div class="card" id="rushStepUpload">
+                    <div class="rush-hero">
+                        <div class="rush-hero-icon"><i class="fa-solid fa-camera"></i></div>
+                        <h2>Upload a Handwritten Order Photo</h2>
+                        <p>Take a photo of a paper order or upload an image. VoxBill AI will extract the items and let
+                            you review before injecting.</p>
+                    </div>
+                    <div class="rush-drop-zone" id="rushDropZone">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <p style="font-weight:600; color:var(--text); margin-bottom:0.5rem;">Drop image here or click to
+                            upload</p>
+                        <p style="font-size:0.8rem; color:var(--text-muted);">Supports JPG, PNG, HEIC — max 10 MB</p>
+                        <input type="file" id="rushFileInput" accept="image/*" capture="environment"
+                            style="display:none;">
+                    </div>
+                    <div class="rush-preview" id="rushPreview" style="display:none;">
+                        <img id="rushPreviewImg" alt="Uploaded order">
+                        <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-muted);">Image loaded —
+                            processing...</p>
+                    </div>
+                </div>
+
+                <!-- Step 2: Loading -->
+                <div class="card rush-loading" id="rushStepLoading" style="display:none;">
+                    <div class="spinner-ring"></div>
+                    <h3 style="color:var(--text); margin:0 0 0.5rem;">Analyzing Handwriting...</h3>
+                    <p style="color:var(--text-muted); font-size:0.88rem;">Matching items against your menu</p>
+                </div>
+
+                <!-- Step 3: Review & Confirm -->
+                <div class="card" id="rushStepReview" style="display:none;">
+                    <h3 style="margin:0 0 1.25rem; font-weight:700; color:var(--text);"><i
+                            class="fa-solid fa-clipboard-check" style="color:#22D3EE; margin-right:0.5rem;"></i>Review
+                        Extracted Order</h3>
+
+                    <div class="rush-review-grid">
+                        <div>
+                            <label
+                                style="display:block; font-size:0.75rem; color:var(--text-muted); margin-bottom:0.3rem;">Table
+                                Number</label>
+                            <input type="number" id="rushTableInput" class="form-input" placeholder="Table #">
+                        </div>
+                        <div>
+                            <label
+                                style="display:block; font-size:0.75rem; color:var(--text-muted); margin-bottom:0.3rem;">Customer
+                                Name</label>
+                            <input type="text" id="rushCustomerInput" class="form-input" placeholder="Customer name">
+                        </div>
+                    </div>
+
+                    <div style="overflow-x:auto;">
+                        <table class="rush-review-table">
+                            <thead>
+                                <tr>
+                                    <th>Detected Text</th>
+                                    <th>Matched Item</th>
+                                    <th>Qty</th>
+                                    <th>Price</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="rushReviewTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="rush-total-bar">
+                        <span>Estimated Total</span>
+                        <span id="rushEstTotal">₹0</span>
+                    </div>
+
+                    <div>
+                        <label
+                            style="display:block; font-size:0.75rem; color:var(--text-muted); margin-bottom:0.3rem; margin-top:1rem;">Special
+                            Notes</label>
+                        <input type="text" id="rushNoteInput" class="form-input"
+                            placeholder="e.g. Extra spicy, no onion">
+                    </div>
+
+                    <div class="rush-actions">
+                        <button class="btn-secondary" id="rushResetBtn"><i class="fa-solid fa-arrow-rotate-left"></i>
+                            Start Over</button>
+                        <button class="btn-primary" id="rushConfirmBtn"><i class="fa-solid fa-check"></i> Confirm & Send
+                            Order</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/shared.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('sidebarMount').innerHTML = VB.buildSidebar('Rush Mode');
+            document.getElementById('topbarMount').innerHTML = VB.buildTopbar('Rush Mode — Paper-to-Order');
+            VB.initSidebarBehavior();
+            VB.initOfflineBanner();
+            VB.initGlobalSearch();
+            VB.initManagerVoice();
+            VB.initSSENotifications();
+
+            // ── Elements ─────────────────────────────────
+            const stepUpload = document.getElementById('rushStepUpload');
+            const stepLoading = document.getElementById('rushStepLoading');
+            const stepReview = document.getElementById('rushStepReview');
+            const dropZone = document.getElementById('rushDropZone');
+            const fileInput = document.getElementById('rushFileInput');
+            const previewDiv = document.getElementById('rushPreview');
+            const previewImg = document.getElementById('rushPreviewImg');
+            const reviewBody = document.getElementById('rushReviewTableBody');
+            const confirmBtn = document.getElementById('rushConfirmBtn');
+            const resetBtn = document.getElementById('rushResetBtn');
+            const estTotal = document.getElementById('rushEstTotal');
+
+            let extractedItems = [];
+
+            // ── Drop Zone ────────────────────────────────
+            dropZone.addEventListener('click', () => fileInput.click());
+            dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+            dropZone.addEventListener('drop', e => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    fileInput.files = e.dataTransfer.files;
+                    handleUpload(e.dataTransfer.files[0]);
+                }
+            });
+
+            fileInput.addEventListener('change', e => {
+                if (e.target.files.length) handleUpload(e.target.files[0]);
+            });
+
+            function handleUpload(file) {
+                // Show image preview
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    previewImg.src = ev.target.result;
+                    previewDiv.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+
+                // Transition to loading
+                setTimeout(() => {
+                    stepUpload.style.display = 'none';
+                    stepLoading.style.display = 'block';
+                }, 400);
+
+                // Simulate AI extraction (replace with real API later)
+                setTimeout(() => {
+                    runExtraction();
+                }, 2200);
+            }
+
+            // ── Mock Extraction ──────────────────────────
+            async function runExtraction() {
+                // Load real menu if available
+                let menuItems = [];
+                try {
+                    const res = await VoxAPI.getMenu();
+                    if (res.ok) menuItems = res.data.data || res.data || [];
+                } catch (e) { /* fallback to mock */ }
+
+                // Mock detected handwriting → menu mapping
+                let mockData = [
+                    { text: 'Pnj Thali 2', mappedName: 'Punjabi Thali', qty: 2, price: 150, confidence: 'high' },
+                    { text: 'Btn Naan x3', mappedName: 'Butter Naan', qty: 3, price: 30, confidence: 'high' },
+                    { text: 'Paneer tika', mappedName: 'Paneer Tikka', qty: 1, price: 180, confidence: 'low' },
+                    { text: 'masala dosa 1', mappedName: 'Masala Dosa', qty: 1, price: 90, confidence: 'high' }
+                ];
+
+                // Try to match against real menu
+                if (menuItems.length > 0) {
+                    mockData.forEach(mock => {
+                        const keyword = mock.mappedName.toLowerCase().split(' ')[0];
+                        const match = menuItems.find(m => m.name.toLowerCase().includes(keyword));
+                        if (match) {
+                            mock.mappedName = match.name;
+                            mock.price = match.price;
+                        }
+                    });
+                }
+
+                extractedItems = mockData;
+
+                // Transition to review
+                stepLoading.style.display = 'none';
+                stepReview.style.display = 'block';
+
+                document.getElementById('rushTableInput').value = Math.floor(Math.random() * 10) + 1;
+                document.getElementById('rushCustomerInput').value = 'Walk-in (auto-detected)';
+
+                renderReviewTable();
+            }
+
+            // ── Render Review Table ──────────────────────
+            function renderReviewTable() {
+                reviewBody.innerHTML = '';
+                let total = 0;
+
+                extractedItems.forEach((item, i) => {
+                    const lineTotal = item.qty * item.price;
+                    total += lineTotal;
+                    const confClass = item.confidence === 'high' ? 'confidence-high' : 'confidence-low';
+                    const confIcon = item.confidence === 'high'
+                        ? '<i class="fa-solid fa-circle-check"></i>'
+                        : '<i class="fa-solid fa-circle-exclamation"></i>';
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-family:monospace; font-size:0.82rem; color:var(--text-muted);">${item.text}</td>
+                        <td class="${confClass}" style="font-weight:600;">${confIcon} ${item.mappedName}</td>
+                        <td><input type="number" class="form-input" value="${item.qty}" min="1" style="width:60px; padding:0.25rem 0.5rem;" data-idx="${i}" data-field="qty"></td>
+                        <td style="text-align:right; font-weight:500;">₹${item.price}</td>
+                        <td style="text-align:center;">
+                            <button class="btn-secondary" style="padding:0.3rem 0.5rem; color:#f87171;" data-remove="${i}" title="Remove">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </td>`;
+                    reviewBody.appendChild(tr);
+                });
+
+                estTotal.textContent = `₹${total}`;
+
+                if (extractedItems.length === 0) {
+                    reviewBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No items detected — try another photo</td></tr>';
+                }
+
+                // Bind events
+                reviewBody.querySelectorAll('[data-field="qty"]').forEach(input => {
+                    input.addEventListener('change', e => {
+                        const idx = parseInt(e.target.dataset.idx);
+                        extractedItems[idx].qty = parseInt(e.target.value) || 1;
+                        renderReviewTable();
+                    });
+                });
+                reviewBody.querySelectorAll('[data-remove]').forEach(btn => {
+                    btn.addEventListener('click', e => {
+                        const idx = parseInt(e.currentTarget.dataset.remove);
+                        extractedItems.splice(idx, 1);
+                        renderReviewTable();
+                    });
+                });
+            }
+
+            // ── Confirm & Send ───────────────────────────
+            confirmBtn.addEventListener('click', async () => {
+                if (extractedItems.length === 0) {
+                    VB.showToast('No items to submit', 'error');
+                    return;
+                }
+                const tableNo = document.getElementById('rushTableInput').value;
+                if (!tableNo) {
+                    VB.showToast('Table number is required', 'error');
+                    return;
+                }
+
+                const finalItems = extractedItems.map(i => ({
+                    item: i.mappedName,
+                    qty: i.qty,
+                    price: i.price,
+                    total: i.qty * i.price
+                }));
+
+                const subtotal = finalItems.reduce((s, i) => s + i.total, 0);
+
+                confirmBtn.disabled = true;
+                confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
+
+                try {
+                    const res = await VoxAPI.saveOrder({
+                        tableNumber: parseInt(tableNo),
+                        customerName: document.getElementById('rushCustomerInput').value || '',
+                        items: finalItems,
+                        status: 'ready_for_billing',
+                        notes: document.getElementById('rushNoteInput').value || '',
+                        subtotal: subtotal,
+                        total: subtotal
+                    });
+
+                    if (res.ok) {
+                        VB.showToast(`Table ${tableNo} order injected! ${finalItems.length} items`, 'success');
+                        VB.addNotification(`Rush Mode: Table ${tableNo} order sent`, 'priority');
+                        setTimeout(() => { window.location.href = '../pages/orders.html'; }, 1200);
+                    } else {
+                        throw new Error(res.data?.message || 'Failed');
+                    }
+                } catch (err) {
+                    VB.showToast('Error: ' + err.message, 'error');
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = '<i class="fa-solid fa-check"></i> Confirm & Send Order';
+                }
+            });
+
+            // ── Reset ────────────────────────────────────
+            resetBtn.addEventListener('click', () => {
+                extractedItems = [];
+                fileInput.value = '';
+                previewDiv.style.display = 'none';
+                stepReview.style.display = 'none';
+                stepLoading.style.display = 'none';
+                stepUpload.style.display = 'block';
+            });
+        });
+    </script>
+</body>
+
+</html>

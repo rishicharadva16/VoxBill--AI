@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Order – VoxBill</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css?v=2">
+    <link rel="stylesheet" href="../css/pages.css">
+    <style>
+        /* Smart AI Mode Structural overrides for Voice POS */
+        body.ui-smart .pos-grid {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        body.ui-smart .voice-card {
+            width: 100%;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+            background: #FFFFFF;
+        }
+        body.ui-smart .order-form-card {
+            width: 100%;
+            background: #F8FAFC;
+            border: 1px solid var(--border);
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.02);
+        }
+        body.ui-smart .transcript-box {
+            background: #F1F5F9;
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            font-size: 1.1rem;
+            padding: 1.5rem;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.03);
+        }
+        
+        body.ui-smart .rush-mode-entry {
+            background: var(--teal-dim);
+            border: 1px solid rgba(13,148,136,0.2);
+            padding: 1.5rem;
+            border-radius: var(--radius-md);
+            margin-top: 2rem;
+        }
+        body.ui-smart .rush-mode-entry h4 { color: var(--teal); font-size: 1.05rem; }
+        body.ui-smart .rush-mode-entry p { color: var(--text-muted); }
+        body.ui-smart .rush-mode-entry button { background: #FFFFFF; color: var(--teal); border-color: rgba(13,148,136,0.3); }
+        body.ui-smart .rush-mode-entry button:hover { background: var(--teal); color: #FFFFFF; }
+        
+        /* Language options visual shift for smart mode */
+        body.ui-smart .lang-options {
+            background: #F1F5F9;
+            border: 1px solid var(--border);
+        }
+        body.ui-smart .lang-btn {
+            color: var(--text-muted);
+        }
+        body.ui-smart .lang-btn:hover { background: #E2E8F0; color: var(--text); }
+        body.ui-smart .lang-btn.active {
+            background: var(--teal);
+            color: #FFFFFF;
+            box-shadow: 0 2px 10px rgba(13,148,136,0.25);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="sidebarMount"></div>
+
+    <main class="main" id="main">
+        <div id="topbarMount"></div>
+
+        <div class="content-wrapper">
+            <div class="container">
+
+                <!-- VOICE ORDER SECTION -->
+                <section class="section" id="voice-order">
+                    <div class="section-label">
+                        <i class="fa-solid fa-microphone"></i>
+                        AI Voice POS
+                    </div>
+                    <h2 class="section-title">Voice Ordering</h2>
+                    <p class="section-subtitle">Speak to add items. Say "Hey Nova", "Hey Voxi", or "Hey VB" to activate. Try: "2 butter naan", "remove paneer", "total amount", "send to manager", or "help".</p>
+
+                    <!-- Security Warning for Mobile -->
+                    <div id="securityWarning"
+                        style="display:none; background:var(--error-dim); border:1px solid var(--error); color:var(--error); padding:1rem; border-radius:12px; margin:1rem 0; font-size:0.85rem;">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <strong>Microphone Blocked:</strong> Browsers require <strong>HTTPS</strong> for voice
+                        recognition on mobile.
+                        Please use a secure tunnel or enable "Insecure origins" in Chrome flags.
+                    </div>
+
+                    <div class="pos-grid">
+                        <!-- LEFT: Mic Card -->
+                        <div class="voice-card card">
+                            <div class="voice-card-inner">
+                                <div class="lang-row">
+                                    <div class="lang-options">
+                                        <button class="lang-btn active" data-lang="en-IN">🇮🇳 English</button>
+                                        <button class="lang-btn" data-lang="hi-IN">🇮🇳 Hindi</button>
+                                        <button class="lang-btn" data-lang="gu-IN">🇮🇳 Gujarati</button>
+                                    </div>
+                                </div>
+
+                                <div class="mic-area">
+                                    <div class="mic-wrapper" id="micWrapper">
+                                        <div class="mic-ring ring-3"></div>
+                                        <div class="mic-ring ring-2"></div>
+                                        <div class="mic-ring ring-1"></div>
+                                        <button class="mic-btn" id="micBtn" data-tip="Tap to speak your order"><i
+                                                class="fa-solid fa-microphone" id="micIcon"></i></button>
+                                    </div>
+                                    <p class="mic-status" id="micStatus">Tap to Start</p>
+                                </div>
+
+                                <div class="transcript-box" id="transcriptBox">
+                                    <p class="transcript-text placeholder" id="liveTranscript">Waiting for voice input…
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- RIGHT: Order Summary -->
+                        <div class="card order-form-card">
+                            <div class="card-header">
+                                <div class="card-header-icon teal"><i class="fa-solid fa-receipt"></i></div>
+                                <h3>Current Order</h3>
+                                <span class="item-count" id="itemCount">0 items</span>
+                            </div>
+
+                            <div class="form-row" style="margin-bottom:1rem;">
+                                <div class="form-group">
+                                    <label>Table #</label>
+                                    <input type="number" id="formTable" class="form-input" placeholder="Table">
+                                </div>
+                                <div class="form-group" data-role="manager">
+                                    <label>Disc %</label>
+                                    <input type="number" id="formDiscount" class="form-input" placeholder="0">
+                                </div>
+                            </div>
+
+                            <div class="form-group" style="margin-bottom:1rem;">
+                                <label
+                                    style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;display:block;">
+                                    Customer Name
+                                    <span style="opacity:0.5">(optional)</span>
+                                </label>
+                                <input type="text" id="formCustomerName" class="form-input"
+                                    placeholder="e.g. Rahul, Walk-in Guest...">
+                            </div>
+
+                            <div class="items-list" id="itemsList">
+                                <div class="empty-items">
+                                    <p>No items added yet.</p>
+                                </div>
+                            </div>
+
+                            <div class="bill-action-btns" style="margin-top:1.5rem;justify-content:flex-end;">
+                                <button class="bill-btn secondary"
+                                    onclick="window.location.href='../pages/tables.html'"><i
+                                        class="fa-solid fa-arrow-left"></i> Back</button>
+                                <button class="bill-btn danger" id="clearBillBtn"
+                                    data-tip="Clear all items and start over"><i class="fa-solid fa-trash"></i>
+                                    Clear</button>
+                                <button class="btn-secondary" id="saveDraftBtn"
+                                    data-tip="Save order as draft and work on another table"
+                                    style="border-radius:50px;">
+                                    <i class="fa-solid fa-bookmark"></i> Save Draft
+                                </button>
+                                <button class="btn-primary" id="saveOrderBtn"
+                                    data-tip="Send this order to the manager for billing">
+                                    <i class="fa-solid fa-paper-plane"></i> Send To Manager
+                                </button>
+                            </div>
+
+                            <!-- ADVANCED MANAGER UPLOAD ENTRY -->
+                            <div class="rush-mode-entry" data-role="manager">
+                                <h4>
+                                    <i class="fa-solid fa-camera-viewfinder"></i> Paper-to-Order Upload
+                                </h4>
+                                <p>Convert handwritten paper orders to digital tickets using Smart Extraction.</p>
+                                <button class="btn-secondary" id="openRushModeBtn">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> Upload Photo
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- RUSH MODE UPLOAD MODAL -->
+                <div id="rushModeModal" class="modal-overlay" style="display:none; z-index: 9999; justify-content:center; align-items:center;">
+                    <div class="modal card" style="width: 700px; max-width: 95vw; max-height: 90vh; overflow-y: auto;">
+                        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                            <h3 style="margin:0; font-size: 1.25rem; color: var(--teal);"><i class="fa-solid fa-camera-viewfinder"></i> Smart Paper Order Extraction</h3>
+                            <button class="btn-secondary" id="closeRushModeBtn" style="padding: 0.4rem 0.8rem;"><i class="fa-solid fa-times"></i></button>
+                        </div>
+                        
+                        <div id="rushUploadStep" style="text-align: center; padding: 2rem; border: 2px dashed var(--border); border-radius: var(--radius-lg); margin-bottom: 1.5rem; cursor: pointer; transition: background 0.2s;">
+                            <i class="fa-solid fa-cloud-arrow-up" style="font-size: 3rem; color: var(--purple); margin-bottom: 1rem;"></i>
+                            <h4 style="margin-bottom: 0.5rem;">Upload Handwritten Order</h4>
+                            <p style="color: var(--text-faint); font-size: 0.85rem; margin-bottom: 1.5rem;">Take a photo of the paper ticket or upload an image.</p>
+                            <input type="file" id="rushFileInput" accept="image/*" capture="environment" style="display: none;">
+                            <button class="btn-primary" onclick="document.getElementById('rushFileInput').click()"><i class="fa-solid fa-camera"></i> Select Photo or Use Camera</button>
+                        </div>
+
+                        <div id="rushLoadingStep" style="display:none; text-align: center; padding: 3rem 1rem;">
+                            <div class="spinner" style="border-color: var(--teal) transparent var(--purple) transparent; margin: 0 auto 1.5rem auto; width: 40px; height: 40px; border-radius: 50%; border-width: 3px; border-style: solid; animation: spin 1s linear infinite;"></div>
+                            <h4 style="margin-bottom: 0.5rem; color: var(--text);">Reading Handwritten Order...</h4>
+                            <p style="color: var(--text-muted); font-size: 0.9rem;">Using OCR/Vision logic to map items to the actual menu.</p>
+                        </div>
+
+                        <div id="rushReviewStep" style="display:none;">
+                            <div class="form-row" style="margin-bottom: 1.5rem;">
+                                <div class="form-group" style="flex:1;">
+                                    <label>Table #</label>
+                                    <input type="number" id="rushTableInput" class="form-input" placeholder="Detected Table">
+                                </div>
+                                <div class="form-group" style="flex:2;">
+                                    <label>Customer Name</label>
+                                    <input type="text" id="rushCustomerInput" class="form-input" placeholder="Detected Name">
+                                </div>
+                            </div>
+                            
+                            <h4 style="margin-bottom: 0.75rem; font-size: 0.95rem;">Extracted Items Review</h4>
+                            <p style="font-size: 0.8rem; color: var(--warning); margin-bottom: 1rem; background: var(--warning-dim); padding: 0.5rem; border-radius: 6px;">
+                                <i class="fa-solid fa-triangle-exclamation"></i> Please verify items below. Green items mapped securely. Orange items require attention.
+                            </p>
+                            
+                            <table class="orders-table" style="margin-bottom: 1.5rem;">
+                                <thead>
+                                    <tr>
+                                        <th>Recognized Text</th>
+                                        <th>Mapped Menu Item</th>
+                                        <th style="width: 80px;">Qty</th>
+                                        <th style="width: 60px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rushReviewTableBody">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+
+                            <div class="form-group" style="margin-bottom: 1.5rem;">
+                                <label>Special Note</label>
+                                <input type="text" id="rushNoteInput" class="form-input" placeholder="e.g. Make it spicy, less oil">
+                            </div>
+                            
+                            <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+                                <button class="btn-secondary" id="rushCancelBtn">Cancel</button>
+                                <button class="btn-primary" id="rushConfirmBtn"><i class="fa-solid fa-check"></i> Confirm & Inject Order</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MANAGER ONLY: Live Preview -->
+                <section class="section" id="pos" data-role="manager" style="margin-top: 3rem;">
+                    <div class="section-label"><i class="fa-solid fa-file-invoice-dollar"></i> Preview</div>
+                    <h2 class="section-title">Invoice Preview</h2>
+
+                    <div class="bill-preview-container" style="max-width: 500px; margin: 0 auto;">
+                        <div class="card bill-preview-card">
+                            <div class="invoice-paper" id="invoice">
+                                <div class="inv-header">
+                                    <div class="inv-brand">
+                                        <h2 id="invRestName">RESTAURANT</h2>
+                                        <p id="invRestAddr">Address line</p>
+                                    </div>
+                                    <div class="inv-meta">
+                                        <span id="invDate"></span>
+                                        <span>Table: <strong id="invTable">--</strong></span>
+                                    </div>
+                                </div>
+                                <div class="inv-divider"></div>
+                                <table class="inv-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Item</th>
+                                            <th class="center">Qty</th>
+                                            <th class="right">Amt</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="invoiceItems"></tbody>
+                                </table>
+                                <div class="inv-divider dashed"></div>
+                                <div class="inv-totals">
+                                    <div class="total-row"><span>Subtotal</span><span id="invSubtotal">₹0.00</span>
+                                    </div>
+                                    <div class="total-row grand-row"><span>Grand Total</span><span
+                                            id="invGrand">₹0.00</span></div>
+                                </div>
+                            </div>
+                            <div class="bill-action-btns">
+                                <button class="bill-btn" onclick="window.print()"><i class="fa-solid fa-print"></i>
+                                    Print</button>
+                                <button class="bill-btn whatsapp" id="whatsappShareBtn"><i
+                                        class="fa-brands fa-whatsapp"></i> WhatsApp</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/shared.js"></script>
+    <script src="../js/global.js"></script>
+    <script src="../js/voice_script.js"></script>
+    <script src="../js/rush_mode.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('sidebarMount').innerHTML = VB.buildSidebar('Voice Order');
+            document.getElementById('topbarMount').innerHTML = VB.buildTopbar('Voice POS');
+            VB.initSidebarBehavior();
+
+            // Hide manager sections for waiters
+            if (!VoxAPI.isManager()) {
+                document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = 'none');
+            }
+
+            // Show security warning if not localhost and not HTTPS
+            if (window.location.hostname !== 'localhost' && window.location.protocol !== 'https:') {
+                const warning = document.getElementById('securityWarning');
+                if (warning) warning.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+
+</html>

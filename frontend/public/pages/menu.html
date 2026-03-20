@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menu Management – VoxBill</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css?v=2">
+    <link rel="stylesheet" href="../css/pages.css">
+</head>
+
+<body>
+    <div id="sidebarMount"></div>
+
+    <main class="main" id="main">
+        <div id="topbarMount"></div>
+        <div class="content-wrapper">
+            <div class="container">
+
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div>
+                        <div class="section-label"><i class="fa-solid fa-utensils"></i> Restaurant Menu</div>
+                        <h1 class="section-title">Menu Management</h1>
+                        <p class="section-subtitle">Add, edit, or remove items from your menu. Voice ordering uses this
+                            list for item detection.</p>
+                    </div>
+                    <div class="header-actions">
+                        <div class="search-box">
+                            <i class="fa-solid fa-search"></i>
+                            <input type="text" id="menuSearch" placeholder="Search items…">
+                        </div>
+                        <button class="btn-primary" id="addItemBtn">
+                            <i class="fa-solid fa-plus"></i> Add Item
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats Row -->
+                <div class="mini-stats-row" id="menuStats"></div>
+
+                <!-- Category Filter -->
+                <div class="filter-tabs" id="categoryTabs">
+                    <button class="filter-tab active" data-cat="all">All</button>
+                </div>
+
+                <!-- Menu Table -->
+                <div class="card table-card">
+                    <table class="data-table" id="menuTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Item Name</th>
+                                <th>Category</th>
+                                <th class="right">Price</th>
+                                <th class="center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="menuBody"></tbody>
+                    </table>
+                    <div class="table-empty" id="menuEmpty" style="display:none">
+                        <div style="
+                            display:flex; flex-direction:column;
+                            align-items:center; justify-content:center;
+                            padding:3rem 1rem; text-align:center;
+                            gap:0.75rem;">
+                          <div style="
+                              width:56px; height:56px; border-radius:50%;
+                              background:rgba(139,92,246,0.08);
+                              border:1.5px solid rgba(139,92,246,0.2);
+                              display:flex; align-items:center;
+                              justify-content:center; font-size:1.5rem;
+                              color:#8B5CF6;">
+                            <i class="fa-solid fa-utensils"></i>
+                          </div>
+                          <div>
+                            <p style="font-size:1rem; font-weight:600;
+                                color:var(--text); margin-bottom:0.25rem;">
+                              Menu is empty
+                            </p>
+                            <p style="font-size:0.85rem;
+                                color:var(--text-muted);">
+                              Add your first menu item to get started
+                            </p>
+                          </div>
+                          <button class="btn-primary" onclick="openModal()">
+                            <i class="fa-solid fa-plus"></i> Add Item
+                          </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Add/Edit Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-box card">
+            <div class="modal-header">
+                <h3 id="modalTitle">Add Menu Item</h3>
+                <button class="modal-close" id="modalClose"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="field-group">
+                    <label>Item Name *</label>
+                    <input type="text" id="mName" class="form-input" placeholder="e.g. Paneer Butter Masala">
+                </div>
+                <div class="field-row">
+                    <div class="field-group">
+                        <label>Category *</label>
+                        <input type="text" id="mCategory" class="form-input" placeholder="e.g. Main Course"
+                            list="categoryList">
+                        <datalist id="categoryList"></datalist>
+                    </div>
+                    <div class="field-group">
+                        <label>Price (₹) *</label>
+                        <input type="number" id="mPrice" class="form-input" placeholder="0" min="0">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="modalCancel">Cancel</button>
+                <button class="btn-primary" id="modalSave"><i class="fa-solid fa-check"></i> Save Item</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/shared.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('sidebarMount').innerHTML = VB.buildSidebar('Menu');
+            document.getElementById('topbarMount').innerHTML = VB.buildTopbar('Menu Management');
+            VB.initSidebarBehavior();
+            VB.initOfflineBanner();
+            VB.initGlobalSearch();
+            VB.initManagerVoice();
+            VB.initSSENotifications();
+
+            let editId = null;
+            let filterCat = 'all';
+            let searchQ = '';
+
+            function showMenuSkeleton() {
+                const body = document.getElementById('menuBody')
+                    || document.getElementById('menuTableBody');
+                if (!body) return;
+                body.innerHTML = Array(6).fill('').map(() => `
+                  <tr>
+                    <td><div class="skeleton sk-line" style="width:140px;"></div></td>
+                    <td><div class="skeleton sk-line" style="width:80px;"></div></td>
+                    <td><div class="skeleton sk-line" style="width:60px;"></div></td>
+                    <td><div class="skeleton sk-line" style="width:80px;"></div></td>
+                  </tr>`).join('');
+            }
+
+            /* ── Render Menu ── */
+            function renderMenu() {
+                showMenuSkeleton();
+                const menu = VB.getMenu();
+                const cats = [...new Set(menu.map(i => i.category))].sort();
+
+                // Stats
+                const statsEl = document.getElementById('menuStats');
+                statsEl.innerHTML = `
+            <div class="mini-stat card"><span class="ms-val">${menu.length}</span><span class="ms-label">Total Items</span></div>
+            <div class="mini-stat card"><span class="ms-val">${cats.length}</span><span class="ms-label">Categories</span></div>
+            <div class="mini-stat card"><span class="ms-val">₹${menu.length ? Math.round(menu.reduce((s, i) => s + i.price, 0) / menu.length) : 0}</span><span class="ms-label">Avg Price</span></div>
+        `;
+
+                // Category tabs
+                const tabsEl = document.getElementById('categoryTabs');
+                tabsEl.innerHTML = `<button class="filter-tab ${filterCat === 'all' ? 'active' : ''}" data-cat="all">All (${menu.length})</button>`;
+                cats.forEach(c => {
+                    const cnt = menu.filter(i => i.category === c).length;
+                    tabsEl.innerHTML += `<button class="filter-tab ${filterCat === c ? 'active' : ''}" data-cat="${c}">${c} (${cnt})</button>`;
+                });
+                tabsEl.querySelectorAll('.filter-tab').forEach(btn => {
+                    btn.addEventListener('click', () => { filterCat = btn.dataset.cat; renderMenu(); });
+                });
+
+                // Datalist for autocomplete
+                const dl = document.getElementById('categoryList');
+                dl.innerHTML = cats.map(c => `<option value="${c}">`).join('');
+
+                // Filter
+                let filtered = menu;
+                if (filterCat !== 'all') filtered = filtered.filter(i => i.category === filterCat);
+                if (searchQ) filtered = filtered.filter(i => i.name.toLowerCase().includes(searchQ) || i.category.toLowerCase().includes(searchQ));
+
+                const body = document.getElementById('menuBody');
+                const emptyEl = document.getElementById('menuEmpty');
+
+                if (filtered.length === 0) {
+                    body.innerHTML = '';
+                    emptyEl.style.display = 'flex';
+                    return;
+                }
+                emptyEl.style.display = 'none';
+
+                body.innerHTML = filtered.map((item, idx) => `
+            <tr>
+                <td class="row-num">${idx + 1}</td>
+                <td class="item-name-cell">
+                    <span class="item-dot" style="background:${catColor(item.category)}"></span>
+                    ${item.name}
+                </td>
+                <td><span class="cat-badge">${item.category}</span></td>
+                <td class="right price-cell">₹${item.price}</td>
+                <td class="center">
+                    <div class="row-actions">
+                        <button class="action-btn edit-btn" data-id="${item._id || item.id}" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                        <button class="action-btn del-btn" data-id="${item._id || item.id}" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+
+                body.querySelectorAll('.edit-btn').forEach(btn => btn.addEventListener('click', () => openModal(btn.dataset.id)));
+                body.querySelectorAll('.del-btn').forEach(btn => btn.addEventListener('click', () => deleteItem(btn.dataset.id)));
+            }
+
+            function catColor(cat) {
+                const map = { 'Main Course': '#22D3EE', 'Breads': '#f59e0b', 'Beverages': '#8B5CF6', 'Rice': '#22c55e', 'Desserts': '#f43f5e', 'Starters': '#3B82F6' };
+                return map[cat] || '#94a3b8';
+            }
+
+            /* ── Modal ── */
+            function openModal(id = null) {
+                editId = id;
+                const modal = document.getElementById('modalOverlay');
+                modal.classList.add('active');
+                document.getElementById('modalTitle').textContent = id ? 'Edit Menu Item' : 'Add Menu Item';
+
+                if (id) {
+                    const item = VB.getMenu().find(i =>
+                        String(i._id) === String(id) || String(i.id) === String(id)
+                    );
+                    if (item) {
+                        document.getElementById('mName').value = item.name;
+                        document.getElementById('mCategory').value = item.category;
+                        document.getElementById('mPrice').value = item.price;
+                    }
+                } else {
+                    document.getElementById('mName').value = '';
+                    document.getElementById('mCategory').value = '';
+                    document.getElementById('mPrice').value = '';
+                }
+                document.getElementById('mName').focus();
+            }
+
+            function closeModal() {
+                document.getElementById('modalOverlay').classList.remove('active');
+                editId = null;
+            }
+
+            document.getElementById('addItemBtn').addEventListener('click', () => openModal());
+            document.getElementById('modalClose').addEventListener('click', closeModal);
+            document.getElementById('modalCancel').addEventListener('click', closeModal);
+            document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target.id === 'modalOverlay') closeModal(); });
+
+            document.getElementById('modalSave').addEventListener('click', () => {
+                const name = document.getElementById('mName').value.trim();
+                const cat = document.getElementById('mCategory').value.trim();
+                const price = parseFloat(document.getElementById('mPrice').value);
+
+                if (!name || !cat || isNaN(price) || price < 0) {
+                    VB.showToast('Please fill all fields correctly.', 'error'); return;
+                }
+
+                const menu = VB.getMenu();
+                if (editId) {
+                    const idx = menu.findIndex(i => i.id == editId);
+                    if (idx >= 0) { menu[idx].name = name; menu[idx].category = cat; menu[idx].price = price; }
+                } else {
+                    menu.push({ id: VB.getNextMenuId(), name, category: cat, price });
+                }
+                VB.saveMenu(menu);
+                VB.showToast(editId ? 'Item updated.' : 'Item added!');
+                closeModal();
+                renderMenu();
+            });
+
+            function deleteItem(id) {
+                if (!confirm('Remove this item from the menu?')) return;
+                const menu = VB.getMenu().filter(i =>
+                    String(i._id) !== String(id) && String(i.id) !== String(id)
+                );
+                VB.saveMenu(menu);
+                VB.showToast('Item removed.', 'info');
+                renderMenu();
+            }
+
+            /* ── Search ── */
+            document.getElementById('menuSearch').addEventListener('input', e => {
+                searchQ = e.target.value.toLowerCase();
+                renderMenu();
+            });
+
+            /* ── Enter to save in modal ── */
+            document.getElementById('mPrice').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('modalSave').click(); });
+
+            renderMenu();
+        });
+    </script>
+</body>
+
+</html>

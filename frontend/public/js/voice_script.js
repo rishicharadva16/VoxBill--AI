@@ -204,7 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 );
             });
         if (recognition) recognition.lang = selectedLang;
-        window.recognition = recognition;
+        window.waiterRecognition = recognition;
     }
 
     function looksLikeVoiceCommand(text) {
@@ -344,7 +344,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         } else {
             recognition = new SpeechAPI();
-            window.recognition = recognition;
+            window.waiterRecognition = recognition;
             recognition.continuous = false;
             recognition.interimResults = true;
 

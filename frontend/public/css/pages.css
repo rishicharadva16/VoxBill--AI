@@ -644,4 +644,17 @@
 }
 .sk-line-sm { height: 10px; border-radius: 4px; }
 
-
+.item-code-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(34,211,238,0.12);
+    color: var(--teal);
+    font-size: 12px;
+    font-weight: 700;
+    font-family: monospace;
+    border: 1px solid rgba(34,211,238,0.2);
+}

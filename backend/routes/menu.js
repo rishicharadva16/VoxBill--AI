@@ -86,4 +86,86 @@ router.delete('/all', protect, requireRole('manager'), async (req, res) => {
     }
 });
 
+// POST /api/menu/assign-codes
+// Auto assigns sequential codes to all items
+router.post('/assign-codes', 
+    protect, requireRole('manager'), 
+    async (req, res) => {
+    try {
+        const items = await Menu.find({ 
+            restaurantId: req.user.restaurantId 
+        }).sort({ category: 1, name: 1 });
+
+        let code = 1;
+        for (const item of items) {
+            if (!item.code) {
+                item.code = code;
+                await item.save();
+            }
+            code++;
+        }
+
+        const updated = await Menu.find({ 
+            restaurantId: req.user.restaurantId 
+        }).sort({ code: 1 });
+
+        res.json({ success: true, data: updated });
+    } catch (err) {
+        res.status(500).json({ 
+            success: false, 
+            message: err.message 
+        });
+    }
+});
+
+// PATCH /api/menu/:id/code
+// Manually update code for a single item
+router.patch('/:id/code',
+    protect, requireRole('manager'),
+    async (req, res) => {
+        try {
+            const { code } = req.body;
+
+            // Check code is not already taken
+            // by another item
+            if (code) {
+                const existing = await Menu.findOne({
+                    restaurantId: req.user.restaurantId,
+                    code: code,
+                    _id: { $ne: req.params.id }
+                });
+                if (existing) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Code ${code} is already used by ${existing.name}`
+                    });
+                }
+            }
+
+            const item = await Menu.findOneAndUpdate(
+                { 
+                    _id: req.params.id, 
+                    restaurantId: req.user.restaurantId 
+                },
+                { code: code || null },
+                { new: true }
+            );
+
+            if (!item) {
+                return res.status(404).json({ 
+                    success: false, 
+                    message: 'Item not found' 
+                });
+            }
+
+            res.json({ success: true, data: item });
+        } catch (err) {
+            res.status(500).json({ 
+                success: false, 
+                message: err.message 
+            });
+        }
+    }
+);
+
 module.exports = router;

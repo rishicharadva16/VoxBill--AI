@@ -33,3 +33,6 @@ desktop.ini
 # Editor
 .vscode/
 .idea/
+backend/.env 
+frontend/public/js/config.js 
+*.log 

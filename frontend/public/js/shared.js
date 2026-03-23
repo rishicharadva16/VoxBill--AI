@@ -538,9 +538,11 @@ function initSidebarBehavior() {
                 e.target.classList.add('active');
 
                 // If speech recognition is active, we might want to restart it immediately
-                if (window.recognition && typeof window.recognition.stop === 'function') {
-                    window.recognition.lang = targetLang;
-                    // It will restart automatically if we are in continuous mode
+                if (window.managerRecognition && typeof window.managerRecognition.stop === 'function') {
+                    window.managerRecognition.lang = targetLang;
+                }
+                if (window.waiterRecognition && typeof window.waiterRecognition.stop === 'function') {
+                    window.waiterRecognition.lang = targetLang;
                 }
 
                 if (typeof showToast === 'function') {
@@ -845,7 +847,11 @@ function initManagerVoice() {
     // ── Command recognition (main) ──────────
     const recognition = new SpeechAPI();
     window.managerRecognition = recognition;
-    window.recognition = recognition;
+    // Do NOT set window.recognition here —
+    // voice_script.js uses window.recognition 
+    // for waiter ordering and would conflict.
+    // Manager recognition is accessed via 
+    // window.managerRecognition only.
     recognition.continuous = false;
     recognition.interimResults = false;
     // Support 3 language modes
@@ -955,17 +961,22 @@ function initManagerVoice() {
         // Nova
         'hey nova', 'ok nova', 'hi nova',
         'hey nova ai', 'nova ai',
-        // Voxi / Voxie
+        // Voxi / Voxie  
         'hey voxi', 'ok voxi', 'hi voxi',
         'hey voxie', 'ok voxie', 'hi voxie',
         // VB fallback
         'hey vb', 'ok vb', 'hi vb',
         // Legacy
-        'hey voxbill', 'ok voxbill'
+        'hey voxbill', 'ok voxbill',
+        // Easy triggers
+        'listen', 'suno', 'hey listen',
+        'are you there', 'wake up'
     ];
+
     const WAKE_WORDS_SINGLE = [
         'nova', 'voxi', 'voxie',
-        'vb', 'voxbill', 'assistant'
+        'vb', 'voxbill', 'assistant',
+        'listen', 'suno'
     ];
     // Pre-compile regexes for single words
     const WAKE_WORD_REGEXES = WAKE_WORDS_SINGLE.map(
@@ -1055,13 +1066,16 @@ function initManagerVoice() {
     wakeRecognition.onerror = (e) => {
         console.warn('Vox: Wake Listener error:', e.error);
         wakeActive = false;
-        // Restart on recoverable errors
-        if (e.error === 'no-speech' ||
-            e.error === 'aborted') {
-            setTimeout(() => {
-                startWakeListener();
-            }, 1000);
+        if (e.error === 'not-allowed' ||
+            e.error === 'service-not-allowed') {
+            console.warn('Vox: Mic permission denied. ' +
+                'Cannot restart wake listener.');
+            return;
         }
+        // Restart on ALL other errors
+        setTimeout(() => {
+            if (!listening) startWakeListener();
+        }, 1000);
     };
 
     // ── Activate command mode ────────────────
@@ -1271,10 +1285,11 @@ function initManagerVoice() {
     };
 
     recognition.onerror = (e) => {
-        console.warn('Vox: Command recognition error:', e.error);
-
-        showFeedback(
-            'Mic error: ' + e.error, '#f87171');
+        console.warn('Vox: Command recognition error:', 
+            e.error);
+        // Ignore aborted — happens normally
+        if (e.error === 'aborted') return;
+        showFeedback('Mic error: ' + e.error, '#f87171');
         deactivateCommandMode();
     };
 
@@ -1283,6 +1298,15 @@ function initManagerVoice() {
     setTimeout(() => {
         startWakeListener();
     }, 2000);
+
+    // Health check — restart if wake listener dies
+    setInterval(() => {
+        if (!listening && !wakeActive && !wakeRestarting) {
+            console.log('Vox: Health check — ' +
+                'restarting dead wake listener');
+            startWakeListener();
+        }
+    }, 10000);
 
     /* ════════════════════════════════════════
        COMMAND HANDLER
@@ -1448,7 +1472,7 @@ function initManagerVoice() {
             let targetLang = isSwitchHi ? 'hi-IN' : (isSwitchGu ? 'gu-IN' : 'en-IN');
 
             localStorage.setItem('vb_voice_language', targetLang);
-            if (window.recognition) window.recognition.lang = targetLang;
+            if (window.managerRecognition) window.managerRecognition.lang = targetLang;
 
             // Sync UI toggle buttons if they exist
             document.querySelectorAll('.lang-btn').forEach(b => {
@@ -4835,6 +4859,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Delay slightly so the page has rendered
         setTimeout(showLoginGreeting, 600);
     }
+
+    // Safety net — init voice if page forgot to call it
+    setTimeout(() => {
+        if (window.VoxAPI && VoxAPI.isManager()) {
+            if (!document.getElementById('mvBtn')) {
+                initManagerVoice();
+            }
+        }
+    }, 900);
 });
 
 

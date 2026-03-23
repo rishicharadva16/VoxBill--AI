@@ -329,3 +329,131 @@ with confidence "low" and your best guess.`;
     });
 
 });
+
+function parseOCRText(rawText, menuItems) {
+    const lines = rawText
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0);
+
+    console.log('[Rush] OCR lines:', lines);
+
+    const results = [];
+    let detectedTable = null;
+    let detectedCustomer = null;
+
+    // Build code lookup map from menu
+    // { "1": menuItem, "2": menuItem, ... }
+    const codeMap = {};
+    for (const item of menuItems) {
+        if (item.code) {
+            codeMap[String(item.code)] = item;
+        }
+    }
+
+    for (const line of lines) {
+        const clean = line.trim();
+
+        // Detect table number
+        // Patterns: T5, T 5, Table 5, t5
+        const tableMatch = clean.match(
+            /^[Tt](?:able)?\s*(\d+)/i);
+        if (tableMatch) {
+            detectedTable = tableMatch[1];
+            continue;
+        }
+
+        // Detect customer name
+        // Patterns: C Rahul, C: Rahul, Customer Rahul
+        const custMatch = clean.match(
+            /^[Cc](?:ustomer)?[:\s]+(.+)/i);
+        if (custMatch) {
+            detectedCustomer = custMatch[1].trim();
+            continue;
+        }
+
+        // Parse order line
+        // Supported formats:
+        // 01x2    (code x qty)
+        // 01 x 2  (code space x space qty)
+        // 01X2    (uppercase X)
+        // 01×2    (unicode times)
+        // 01 2    (code space qty)
+        // 2       (just code, qty=1)
+        // 01*2    (code * qty)
+
+        const patterns = [
+            // code[x/*×]qty
+            /^(\d+)\s*[xX×\*]\s*(\d+)$/,
+            // code space qty
+            /^(\d+)\s+(\d+)$/,
+            // just code
+            /^(\d+)$/,
+        ];
+
+        let code = null;
+        let qty = 1;
+
+        for (const pattern of patterns) {
+            const m = clean.match(pattern);
+            if (m) {
+                code = m[1];
+                qty = m[2] ? parseInt(m[2]) : 1;
+                break;
+            }
+        }
+
+        if (!code) continue;
+
+        // Look up menu item by code
+        const menuItem = codeMap[code];
+
+        if (menuItem) {
+            // Check if already in results
+            const existing = results.find(
+                r => r.menuId === menuItem._id
+                  || String(menuItem.code) === code
+            );
+            if (existing) {
+                existing.qty += qty;
+            } else {
+                results.push({
+                    text:       clean,
+                    mappedName: menuItem.name,
+                    qty:        qty,
+                    price:      menuItem.price,
+                    menuId:     menuItem._id,
+                    confidence: 'high'
+                });
+            }
+        } else if (code) {
+            // Code not found in menu
+            results.push({
+                text:       clean,
+                mappedName: `Unknown code: ${code}`,
+                qty:        qty,
+                price:      0,
+                menuId:     null,
+                confidence: 'low'
+            });
+        }
+    }
+
+    // Auto-fill table and customer if detected
+    if (detectedTable) {
+        const tableInput = document
+            .getElementById('rushTableInput');
+        if (tableInput) {
+            tableInput.value = detectedTable;
+        }
+    }
+    if (detectedCustomer) {
+        const custInput = document
+            .getElementById('rushCustomerInput');
+        if (custInput) {
+            custInput.value = detectedCustomer;
+        }
+    }
+
+    return results;
+}

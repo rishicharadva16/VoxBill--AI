@@ -33,6 +33,13 @@
                             <i class="fa-solid fa-search"></i>
                             <input type="text" id="menuSearch" placeholder="Search items…">
                         </div>
+                        <button class="btn-primary" id="btnAssignCodes">
+                            Assign Item Codes
+                        </button>
+                        
+                        <button class="btn-secondary" id="btnPrintCodeCard">
+                            Print Code Card
+                        </button>
                         <button class="btn-primary" id="addItemBtn">
                             <i class="fa-solid fa-plus"></i> Add Item
                         </button>
@@ -52,6 +59,7 @@
                     <table class="data-table" id="menuTable">
                         <thead>
                             <tr>
+                                <th>Code</th>
                                 <th>#</th>
                                 <th>Item Name</th>
                                 <th>Category</th>
@@ -129,6 +137,7 @@
         </div>
     </div>
 
+    <script src="../js/config.js"></script>
     <script src="../js/api.js"></script>
     <script src="../js/intent_parser.js"></script>
     <script src="../js/shared.js"></script>
@@ -152,6 +161,7 @@
                 if (!body) return;
                 body.innerHTML = Array(6).fill('').map(() => `
                   <tr>
+                    <td><div class="skeleton sk-line" style="width:40px;"></div></td>
                     <td><div class="skeleton sk-line" style="width:140px;"></div></td>
                     <td><div class="skeleton sk-line" style="width:80px;"></div></td>
                     <td><div class="skeleton sk-line" style="width:60px;"></div></td>
@@ -205,6 +215,11 @@
 
                 body.innerHTML = filtered.map((item, idx) => `
             <tr>
+                <td>
+                  <span class="item-code-badge">
+                    ${item.code || '—'}
+                  </span>
+                </td>
                 <td class="row-num">${idx + 1}</td>
                 <td class="item-name-cell">
                     <span class="item-dot" style="background:${catColor(item.category)}"></span>
@@ -307,6 +322,137 @@
 
             renderMenu();
         });
+
+// Assign codes button
+document.getElementById('btnAssignCodes')
+    .addEventListener('click', async () => {
+    if (!confirm(
+        'Auto-assign codes to all menu items?')) 
+        return;
+    const res = await VoxAPI.call(
+        'POST', '/menu/assign-codes', {});
+    if (res.ok) {
+        showToast('Codes assigned successfully!');
+        loadMenu(); // reload the menu table
+    } else {
+        showToast('Failed to assign codes', 'error');
+    }
+});
+
+// Print code card button  
+document.getElementById('btnPrintCodeCard')
+    .addEventListener('click', () => {
+    printCodeCard();
+});
+
+async function printCodeCard() {
+    const res = await VoxAPI.getMenu();
+    if (!res.ok) return;
+    const items = res.data.data
+        .filter(i => i.code && !i.disabled)
+        .sort((a, b) => a.code - b.code);
+
+    const settings = VB.getSettings();
+
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <title>Order Code Card</title>
+        <style>
+            * { box-sizing: border-box; margin: 0; 
+                padding: 0; }
+            body { 
+                font-family: Arial, sans-serif;
+                padding: 16px;
+                font-size: 12px;
+            }
+            h2 { 
+                text-align: center; 
+                font-size: 16px;
+                margin-bottom: 4px;
+            }
+            p { 
+                text-align: center; 
+                color: #666; 
+                font-size: 10px;
+                margin-bottom: 12px;
+            }
+            table { 
+                width: 100%; 
+                border-collapse: collapse;
+            }
+            th { 
+                background: #f1f5f9;
+                padding: 6px 8px;
+                text-align: left;
+                font-size: 11px;
+                border: 1px solid #e2e8f0;
+            }
+            td { 
+                padding: 5px 8px;
+                border: 1px solid #e2e8f0;
+            }
+            .code { 
+                font-weight: 700;
+                font-size: 14px;
+                color: #0D9488;
+                font-family: monospace;
+                text-align: center;
+                width: 40px;
+            }
+            .cat {
+                font-size: 9px;
+                color: #888;
+            }
+            .footer {
+                margin-top: 10px;
+                font-size: 9px;
+                color: #888;
+                text-align: center;
+            }
+            @media print {
+                body { padding: 8px; }
+            }
+        </style>
+        </head>
+        <body>
+        <h2>${settings.restaurantName || 'VoxBill'}</h2>
+        <p>Waiter Order Code Card — 
+           Write: CODE x QTY (e.g. 01x2)</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Item</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${items.map(item => `
+                <tr>
+                    <td class="code">${item.code}</td>
+                    <td>${item.name}</td>
+                    <td class="cat">
+                        ${item.category}
+                    </td>
+                    <td>₹${item.price}</td>
+                </tr>`).join('')}
+            </tbody>
+        </table>
+        <div class="footer">
+            Format: CODE x QTY on each line. 
+            Start with T[table number] C[customer name]
+        </div>
+        </body>
+        </html>`;
+
+    const w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.close();
+    w.print();
+}
     </script>
 </body>
 

@@ -3,6 +3,7 @@
 *.env
 backend/.env
 frontend/.env
+frontend/public/js/config.js
 
 # Node.js
 node_modules/

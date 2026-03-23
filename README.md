@@ -1,4 +1,5 @@
 # VoxBill — AI Voice Billing System
+# VoxBill — AI Voice Billing System
 
 A full-stack restaurant management and billing platform
 with AI-powered voice ordering. Staff speak orders into 

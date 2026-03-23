@@ -33,10 +33,9 @@
                             <i class="fa-solid fa-search"></i>
                             <input type="text" id="menuSearch" placeholder="Search items…">
                         </div>
-                        <button class="btn-primary" id="btnAssignCodes">
-                            Assign Item Codes
+                        <button class="btn-secondary" id="btnAssignCodes">
+                            Assign Codes
                         </button>
-                        
                         <button class="btn-secondary" id="btnPrintCodeCard">
                             Print Code Card
                         </button>
@@ -59,7 +58,7 @@
                     <table class="data-table" id="menuTable">
                         <thead>
                             <tr>
-                                <th>Code</th>
+                                <th style="width:60px;">Code</th>
                                 <th>#</th>
                                 <th>Item Name</th>
                                 <th>Category</th>
@@ -216,7 +215,12 @@
                 body.innerHTML = filtered.map((item, idx) => `
             <tr>
                 <td>
-                  <span class="item-code-badge">
+                  <span class="item-code-badge 
+                    ${item.code ? '' : 'unassigned'}"
+                    onclick="editItemCode('${item._id || item.id}', 
+                      ${item.code || 'null'})"
+                    title="Click to change code"
+                    style="cursor:pointer;">
                     ${item.code || '—'}
                   </span>
                 </td>
@@ -323,136 +327,154 @@
             renderMenu();
         });
 
-// Assign codes button
-document.getElementById('btnAssignCodes')
-    .addEventListener('click', async () => {
-    if (!confirm(
-        'Auto-assign codes to all menu items?')) 
+// Click code to edit it
+async function editItemCode(itemId, currentCode) {
+    const newCode = prompt(
+        'Enter new code number for this item:\n' +
+        'Leave blank to remove code.',
+        currentCode || ''
+    );
+    if (newCode === null) return;
+    const code = newCode.trim() === '' 
+        ? null 
+        : parseInt(newCode.trim());
+    if (newCode.trim() !== '' && isNaN(code)) {
+        VB.showToast('Code must be a number.','error');
         return;
-    const res = await VoxAPI.call(
-        'POST', '/menu/assign-codes', {});
-    if (res.ok) {
-        showToast('Codes assigned successfully!');
-        loadMenu(); // reload the menu table
-    } else {
-        showToast('Failed to assign codes', 'error');
+    }
+    try {
+        const token = sessionStorage.getItem('vb_jwt');
+        const res = await fetch(
+            `/api/menu/${itemId}/code`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ code })
+        });
+        const data = await res.json();
+        if (data.success) {
+            VB.showToast(code 
+                ? `Code ${code} assigned.` 
+                : 'Code removed.');
+            loadMenu();
+        } else {
+            VB.showToast(data.message, 'error');
+        }
+    } catch (err) {
+        VB.showToast('Failed to update code.','error');
+    }
+}
+
+// Assign codes to all items at once
+document.getElementById('btnAssignCodes')
+  .addEventListener('click', async () => {
+    try {
+        const token = sessionStorage.getItem('vb_jwt');
+        const res = await fetch(
+            '/api/menu/assign-codes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        const data = await res.json();
+        if (data.success) {
+            VB.showToast('Codes assigned to all items!');
+            loadMenu();
+        } else {
+            VB.showToast(data.message, 'error');
+        }
+    } catch (err) {
+        VB.showToast('Failed to assign codes.','error');
     }
 });
 
-// Print code card button  
+// Print code card for waiters
 document.getElementById('btnPrintCodeCard')
-    .addEventListener('click', () => {
-    printCodeCard();
+  .addEventListener('click', async () => {
+    try {
+        const token = sessionStorage.getItem('vb_jwt');
+        const res = await fetch('/api/menu', {
+            headers: { 
+                'Authorization': `Bearer ${token}` 
+            }
+        });
+        const data = await res.json();
+        if (!data.success) return;
+        const items = data.data
+            .filter(i => i.code && !i.disabled)
+            .sort((a, b) => a.code - b.code);
+        if (items.length === 0) {
+            VB.showToast(
+                'No codes assigned yet. ' +
+                'Click Assign Codes first.', 
+                'error');
+            return;
+        }
+        const settings = VB.getSettings();
+        const now = new Date()
+            .toLocaleDateString('en-IN');
+        const html = `<!DOCTYPE html>
+<html><head><title>Waiter Code Card</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:Arial,sans-serif;
+       padding:20px;max-width:420px;}
+  .header{text-align:center;margin-bottom:14px;
+    padding-bottom:10px;
+    border-bottom:2px solid #0D9488;}
+  .header h2{font-size:16px;margin-bottom:3px;}
+  .header p{font-size:10px;color:#666;}
+  table{width:100%;border-collapse:collapse;}
+  th{background:#f1f5f9;padding:7px 8px;
+     text-align:left;font-size:11px;
+     border:1px solid #e2e8f0;}
+  td{padding:6px 8px;border:1px solid #e2e8f0;
+     font-size:12px;}
+  .code{font-weight:800;font-size:15px;
+    color:#0D9488;font-family:monospace;
+    text-align:center;width:45px;}
+  .price{text-align:right;width:60px;}
+  .cat{font-size:10px;color:#9CA3AF;width:80px;}
+  .footer{margin-top:12px;padding:8px;
+    background:#f8fafc;border-radius:6px;
+    font-size:10px;color:#6B7280;
+    text-align:center;line-height:1.6;}
+  .footer strong{color:#0D9488;}
+</style></head><body>
+<div class="header">
+  <h2>${settings.restaurantName || 'VoxBill'}</h2>
+  <p>Waiter Order Code Card · ${now}</p>
+</div>
+<table><thead><tr>
+  <th>Code</th><th>Item</th>
+  <th>Category</th><th>Price</th>
+</tr></thead><tbody>
+${items.map(i => `<tr>
+  <td class="code">${i.code}</td>
+  <td>${i.name}</td>
+  <td class="cat">${i.category}</td>
+  <td class="price">₹${i.price}</td>
+</tr>`).join('')}
+</tbody></table>
+<div class="footer">
+  <strong>How to write orders:</strong><br>
+  T[table number] then one item per line:<br>
+  <strong>CODE x QTY</strong> 
+  — Example: T5 · 1x2 · 3x1 · 7x3
+</div>
+</body></html>`;
+        const w = window.open('', '_blank');
+        w.document.write(html);
+        w.document.close();
+        w.print();
+    } catch (err) {
+        VB.showToast('Could not print card.','error');
+    }
 });
-
-async function printCodeCard() {
-    const res = await VoxAPI.getMenu();
-    if (!res.ok) return;
-    const items = res.data.data
-        .filter(i => i.code && !i.disabled)
-        .sort((a, b) => a.code - b.code);
-
-    const settings = VB.getSettings();
-
-    const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <title>Order Code Card</title>
-        <style>
-            * { box-sizing: border-box; margin: 0; 
-                padding: 0; }
-            body { 
-                font-family: Arial, sans-serif;
-                padding: 16px;
-                font-size: 12px;
-            }
-            h2 { 
-                text-align: center; 
-                font-size: 16px;
-                margin-bottom: 4px;
-            }
-            p { 
-                text-align: center; 
-                color: #666; 
-                font-size: 10px;
-                margin-bottom: 12px;
-            }
-            table { 
-                width: 100%; 
-                border-collapse: collapse;
-            }
-            th { 
-                background: #f1f5f9;
-                padding: 6px 8px;
-                text-align: left;
-                font-size: 11px;
-                border: 1px solid #e2e8f0;
-            }
-            td { 
-                padding: 5px 8px;
-                border: 1px solid #e2e8f0;
-            }
-            .code { 
-                font-weight: 700;
-                font-size: 14px;
-                color: #0D9488;
-                font-family: monospace;
-                text-align: center;
-                width: 40px;
-            }
-            .cat {
-                font-size: 9px;
-                color: #888;
-            }
-            .footer {
-                margin-top: 10px;
-                font-size: 9px;
-                color: #888;
-                text-align: center;
-            }
-            @media print {
-                body { padding: 8px; }
-            }
-        </style>
-        </head>
-        <body>
-        <h2>${settings.restaurantName || 'VoxBill'}</h2>
-        <p>Waiter Order Code Card — 
-           Write: CODE x QTY (e.g. 01x2)</p>
-        <table>
-            <thead>
-                <tr>
-                    <th>Code</th>
-                    <th>Item</th>
-                    <th>Category</th>
-                    <th>Price</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${items.map(item => `
-                <tr>
-                    <td class="code">${item.code}</td>
-                    <td>${item.name}</td>
-                    <td class="cat">
-                        ${item.category}
-                    </td>
-                    <td>₹${item.price}</td>
-                </tr>`).join('')}
-            </tbody>
-        </table>
-        <div class="footer">
-            Format: CODE x QTY on each line. 
-            Start with T[table number] C[customer name]
-        </div>
-        </body>
-        </html>`;
-
-    const w = window.open('', '_blank');
-    w.document.write(html);
-    w.document.close();
-    w.print();
-}
     </script>
 </body>
 

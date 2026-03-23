@@ -648,13 +648,23 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 6px;
     border-radius: 8px;
-    background: rgba(34,211,238,0.12);
+    background: rgba(34,211,238,0.1);
     color: var(--teal);
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     font-family: monospace;
     border: 1px solid rgba(34,211,238,0.2);
+    transition: background 0.15s;
+}
+.item-code-badge:hover {
+    background: rgba(34,211,238,0.22);
+}
+.item-code-badge.unassigned {
+    background: rgba(255,255,255,0.04);
+    color: var(--text-faint);
+    border-color: var(--border);
 }

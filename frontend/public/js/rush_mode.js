@@ -47,52 +47,192 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('rushNoteInput').value = '';
     }
 
-    // Handle Upload
-    fileInput.addEventListener('change', (e) => {
+    // Convert image file to base64 string
+    function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(
+                reader.result.split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    fileInput.addEventListener('change', async (e) => {
         if (!e.target.files.length) return;
-        
-        // Show loading state
+
+        const file = e.target.files[0];
         uploadStep.style.display = 'none';
         loadingStep.style.display = 'block';
 
-        // Simulate OCR/Vision processing delay
-        setTimeout(() => {
-            runMockExtraction();
-        }, 1800);
-    });
+        try {
+            const base64 = await fileToBase64(file);
 
-    function runMockExtraction() {
-        loadingStep.style.display = 'none';
-        reviewStep.style.display = 'block';
-
-        // Try to fetch actual global menu to map something realistic
-        let menuItems = window._cachedMenu || [];
-        
-        // Demo items matching some random handwritten texts
-        let mockData = [
-            { text: "Pnj Thali 2",  menuId: null, mappedName: "Punjabi Thali", qty: 2, price: 150, confidence: "high" },
-            { text: "Btn Naan x3",  menuId: null, mappedName: "Butter Naan",   qty: 3, price: 30,  confidence: "high" },
-            { text: "Paneer tika",  menuId: null, mappedName: "Paneer Tikka",  qty: 1, price: 180, confidence: "low" }
-        ];
-
-        // Replace mappedNames with closest match from actual menu if available
-        if (menuItems.length > 0) {
-            mockData.forEach(mock => {
-                const match = menuItems.find(m => m.name.toLowerCase().includes(mock.mappedName.toLowerCase().split(' ')[0]));
-                if (match) {
-                    mock.mappedName = match.name;
-                    mock.price = match.price;
-                    mock.menuId = match._id;
+            // Fetch fresh live menu from backend
+            const token = sessionStorage.getItem('vb_jwt');
+            const menuRes = await fetch('/api/menu', {
+                headers: { 
+                    'Authorization': `Bearer ${token}` 
                 }
             });
+            const menuData = await menuRes.json();
+            const menuItems = menuData.success 
+                ? menuData.data : [];
+            window._cachedMenu = menuItems;
+
+            await runAIExtraction(base64, menuItems);
+        } catch (err) {
+            console.error('Rush mode error:', err);
+            if (window.showToast) {
+                showToast(
+                    'Could not process image: ' + err.message,
+                    'error');
+            }
+            resetRushModal();
+        }
+    });
+
+    async function runAIExtraction(base64Image, menuItems) {
+        const menuList = menuItems.length > 0
+            ? menuItems.map(m =>
+                `${m.name} (Category: ${m.category}, ` +
+                `Price: ₹${m.price})`
+              ).join('\n')
+            : 'No menu loaded — use best judgment';
+
+        const shortCodes = menuItems
+            .filter(m => m.shortCode)
+            .map(m => `${m.shortCode} = ${m.name}`)
+            .join('\n');
+
+        const prompt = `You are a restaurant order extraction system.
+
+Look at this handwritten order slip image carefully.
+
+The restaurant menu is:
+${menuList}
+
+${shortCodes ? `Short codes:\n${shortCodes}` : ''}
+
+Instructions:
+1. Read ALL handwritten items from the image
+2. Match each item to the closest menu item above
+   even if spelling is bad, abbreviated, or unclear
+3. Extract the quantity for each item (default 1 
+   if not written)
+4. Return ONLY a JSON array, no explanation, 
+   no markdown, no code blocks
+
+Return format:
+[
+  {
+    "handwritten": "exact text you saw in image",
+    "mappedName": "exact menu item name from list",
+    "qty": 2,
+    "price": 250,
+    "confidence": "high"
+  }
+]
+
+confidence = "high" if you are sure about the match
+confidence = "low" if handwriting was unclear or 
+             match is approximate
+
+If you cannot read an item at all, still include it
+with confidence "low" and your best guess.`;
+
+        const apiKey = window.ANTHROPIC_API_KEY || '';
+        if (!apiKey) {
+            throw new Error(
+                'Anthropic API key not set. ' +
+                'Add it to config.js');
         }
 
-        extractedItems = mockData;
+        const response = await fetch(
+            'https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'anthropic-version': '2023-06-01',
+                'x-api-key': apiKey,
+                'anthropic-dangerous-direct-browser-access': 'true'
+            },
+            body: JSON.stringify({
+                model: 'claude-opus-4-5',
+                max_tokens: 1024,
+                messages: [{
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'image',
+                            source: {
+                                type: 'base64',
+                                media_type: 'image/jpeg',
+                                data: base64Image
+                            }
+                        },
+                        {
+                            type: 'text',
+                            text: prompt
+                        }
+                    ]
+                }]
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.error?.message || 'Claude API error');
+        }
+
+        let raw = data.content[0].text.trim();
+        raw = raw.replace(/```json|```/g, '').trim();
+
+        let parsed;
+        try {
+            parsed = JSON.parse(raw);
+        } catch (e) {
+            throw new Error(
+                'Could not parse AI response. ' +
+                'Try a clearer image.');
+        }
+
+        // Map parsed items — always use DB price, not AI price
+        extractedItems = parsed.map(item => {
+            const menuMatch = menuItems.find(m =>
+                m.name.toLowerCase() === 
+                item.mappedName.toLowerCase()
+            ) || menuItems.find(m =>
+                m.name.toLowerCase().includes(
+                    item.mappedName.toLowerCase()
+                        .split(' ')[0])
+            );
+
+            return {
+                text:       item.handwritten,
+                mappedName: menuMatch 
+                    ? menuMatch.name : item.mappedName,
+                qty:        item.qty || 1,
+                price:      menuMatch 
+                    ? menuMatch.price : (item.price || 0),
+                menuId:     menuMatch 
+                    ? menuMatch._id : null,
+                confidence: item.confidence || 'low'
+            };
+        });
+
+        loadingStep.style.display = 'none';
+        reviewStep.style.display = 'block';
         renderReviewTable();
 
-        // Randomize mock form data
-        document.getElementById('rushTableInput').value = Math.floor(Math.random() * 5) + 1;
-        document.getElementById('rushCustomerInput').value = "Walk in (Auto-detected)";
+        // Focus table input for quick entry
+        const tableInput = document
+            .getElementById('rushTableInput');
+        if (tableInput && !tableInput.value) {
+            tableInput.focus();
+        }
     }
 
     function renderReviewTable() {

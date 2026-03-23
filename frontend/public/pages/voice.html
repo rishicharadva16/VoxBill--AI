@@ -312,6 +312,7 @@
         </div>
     </main>
 
+    <script src="../js/config.js"></script>
     <script src="../js/api.js"></script>
     <script src="../js/intent_parser.js"></script>
     <script src="../js/shared.js"></script>
@@ -323,14 +324,24 @@
             document.getElementById('sidebarMount').innerHTML = VB.buildSidebar('Voice Order');
             document.getElementById('topbarMount').innerHTML = VB.buildTopbar('Voice POS');
             VB.initSidebarBehavior();
+            VB.initOfflineBanner();
+            VB.initGlobalSearch();
+            VB.initSSENotifications();
 
-            // Hide manager sections for waiters
+            // Initialize manager voice commands
+            setTimeout(() => {
+                if (window.VoxAPI && VoxAPI.isManager()) {
+                    VB.initManagerVoice();
+                }
+            }, 800);
+
             if (!VoxAPI.isManager()) {
-                document.querySelectorAll('[data-role="manager"]').forEach(el => el.style.display = 'none');
+                document.querySelectorAll('[data-role="manager"]')
+                  .forEach(el => el.style.display = 'none');
             }
 
-            // Show security warning if not localhost and not HTTPS
-            if (window.location.hostname !== 'localhost' && window.location.protocol !== 'https:') {
+            if (window.location.hostname !== 'localhost' && 
+                window.location.protocol !== 'https:') {
                 const warning = document.getElementById('securityWarning');
                 if (warning) warning.style.display = 'block';
             }

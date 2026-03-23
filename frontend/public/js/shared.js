@@ -2,7 +2,18 @@
  * VoxBill Shared Data Layer
  * All localStorage get/set helpers used across all pages.
  */
+/**
+* VoxBill Shared Data Layer
+* All localStorage get/set helpers used across all pages.
+*/
 
+// ── Anthropic API Key ──────────────────────
+// Removed: See config.js which is gitignored
+// ───────────────────────────────────────────
+
+/* ─────────────────────────────────────────
+   RESTAURANT SETTINGS
+───────────────────────────────────────── */
 /* ─────────────────────────────────────────
    RESTAURANT SETTINGS
 ───────────────────────────────────────── */
@@ -1277,6 +1288,11 @@ function initManagerVoice() {
        COMMAND HANDLER
     ════════════════════════════════════════ */
     function handleCommand(t) {
+        // Normalize using VoxIntentParser if available
+        if (window.VoxIntentParser && 
+            typeof VoxIntentParser.normalize === 'function') {
+            t = VoxIntentParser.normalize(t);
+        }
 
         // ── PHONE NUMBER COLLECTION (step 2) ─────
         if (waitingForPhone) {

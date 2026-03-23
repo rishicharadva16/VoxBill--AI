@@ -168,10 +168,29 @@
                   </tr>`).join('');
             }
 
+            window.loadMenu = async function loadMenu() {
+                try {
+                    const token = sessionStorage.getItem('vb_jwt');
+                    const res = await fetch('/api/menu', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        localStorage.setItem('vb_menu', JSON.stringify(data.data));
+                        renderMenu(data.data);
+                    }
+                } catch (err) {
+                    console.error('loadMenu error:', err);
+                }
+            };
+
             /* ── Render Menu ── */
-            function renderMenu() {
+            function renderMenu(items) {
                 showMenuSkeleton();
-                const menu = VB.getMenu();
+                if (items) localStorage.setItem('vb_menu', JSON.stringify(items));
+                const menu = items || VB.getMenu();
                 const cats = [...new Set(menu.map(i => i.category))].sort();
 
                 // Stats
@@ -324,7 +343,146 @@
             /* ── Enter to save in modal ── */
             document.getElementById('mPrice').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('modalSave').click(); });
 
-            renderMenu();
+            window.loadMenu();
+
+            // Assign codes to all items
+            let assigningCodes = false;
+            document.getElementById('btnAssignCodes')
+                .addEventListener('click', async () => {
+                if (assigningCodes) return;
+                assigningCodes = true;
+                try {
+                    const token = sessionStorage.getItem('vb_jwt');
+                    
+                    // Step 1 — remove any duplicate items first
+                    await fetch('/api/menu/deduplicate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    // Step 2 — reset and reassign all codes 1,2,3
+                    const res = await fetch(
+                        '/api/menu/reset-codes', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        VB.showToast('Codes assigned!');
+                        await loadMenu();
+                    } else {
+                        VB.showToast(data.message, 'error');
+                    }
+                } catch (err) {
+                    VB.showToast(
+                        'Failed to assign codes.', 'error');
+                } finally {
+                    assigningCodes = false;
+                }
+            });
+
+            // Print code card for waiters
+            const printBtn = document
+                .getElementById('btnPrintCodeCard');
+            if (printBtn) {
+                printBtn.addEventListener('click', 
+                    async () => {
+                    try {
+                        const token = sessionStorage
+                            .getItem('vb_jwt');
+                        const res = await fetch(
+                            '/api/menu', {
+                            headers: { 
+                                'Authorization': 
+                                    `Bearer ${token}` 
+                            }
+                        });
+                        const data = await res.json();
+                        if (!data.success) return;
+                        const items = data.data
+                            .filter(i => 
+                                i.code && !i.disabled)
+                            .sort((a, b) => 
+                                a.code - b.code);
+                        if (items.length === 0) {
+                            VB.showToast(
+                                'No codes assigned yet. ' +
+                                'Click Assign Codes first.',
+                                'error');
+                            return;
+                        }
+                        const settings = VB.getSettings();
+                        const now = new Date()
+                            .toLocaleDateString('en-IN');
+                        const html = `<!DOCTYPE html>
+<html><head><title>Waiter Code Card</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,sans-serif;
+     padding:20px;max-width:420px;}
+.header{text-align:center;margin-bottom:14px;
+  padding-bottom:10px;
+  border-bottom:2px solid #0D9488;}
+.header h2{font-size:16px;margin-bottom:3px;}
+.header p{font-size:10px;color:#666;}
+table{width:100%;border-collapse:collapse;}
+th{background:#f1f5f9;padding:7px 8px;
+   text-align:left;font-size:11px;
+   border:1px solid #e2e8f0;}
+td{padding:6px 8px;border:1px solid #e2e8f0;
+   font-size:12px;}
+.code{font-weight:800;font-size:15px;
+  color:#0D9488;font-family:monospace;
+  text-align:center;width:45px;}
+.price{text-align:right;width:60px;}
+.cat{font-size:10px;color:#9CA3AF;width:80px;}
+.footer{margin-top:12px;padding:8px;
+  background:#f8fafc;border-radius:6px;
+  font-size:10px;color:#6B7280;
+  text-align:center;line-height:1.6;}
+.footer strong{color:#0D9488;}
+</style></head><body>
+<div class="header">
+  <h2>${settings.restaurantName || 'VoxBill'}</h2>
+  <p>Waiter Order Code Card · ${now}</p>
+</div>
+<table><thead><tr>
+  <th>Code</th><th>Item</th>
+  <th>Category</th><th>Price</th>
+</tr></thead><tbody>
+${items.map(i => `<tr>
+  <td class="code">${i.code}</td>
+  <td>${i.name}</td>
+  <td class="cat">${i.category}</td>
+  <td class="price">₹${i.price}</td>
+</tr>`).join('')}
+</tbody></table>
+<div class="footer">
+  <strong>How to write orders:</strong><br>
+  T[table number] then one item per line:<br>
+  <strong>CODE x QTY</strong>
+  — Example: T5 · 1x2 · 3x1 · 7x3
+</div>
+</body></html>`;
+                        const w = window.open(
+                            '', '_blank');
+                        w.document.write(html);
+                        w.document.close();
+                        w.print();
+                    } catch (err) {
+                        VB.showToast(
+                            'Could not print card.',
+                            'error');
+                    }
+                });
+            }
+
         });
 
 // Click code to edit it
@@ -367,114 +525,7 @@ async function editItemCode(itemId, currentCode) {
     }
 }
 
-// Assign codes to all items at once
-document.getElementById('btnAssignCodes')
-  .addEventListener('click', async () => {
-    try {
-        const token = sessionStorage.getItem('vb_jwt');
-        const res = await fetch(
-            '/api/menu/assign-codes', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        const data = await res.json();
-        if (data.success) {
-            VB.showToast('Codes assigned to all items!');
-            loadMenu();
-        } else {
-            VB.showToast(data.message, 'error');
-        }
-    } catch (err) {
-        VB.showToast('Failed to assign codes.','error');
-    }
-});
 
-// Print code card for waiters
-document.getElementById('btnPrintCodeCard')
-  .addEventListener('click', async () => {
-    try {
-        const token = sessionStorage.getItem('vb_jwt');
-        const res = await fetch('/api/menu', {
-            headers: { 
-                'Authorization': `Bearer ${token}` 
-            }
-        });
-        const data = await res.json();
-        if (!data.success) return;
-        const items = data.data
-            .filter(i => i.code && !i.disabled)
-            .sort((a, b) => a.code - b.code);
-        if (items.length === 0) {
-            VB.showToast(
-                'No codes assigned yet. ' +
-                'Click Assign Codes first.', 
-                'error');
-            return;
-        }
-        const settings = VB.getSettings();
-        const now = new Date()
-            .toLocaleDateString('en-IN');
-        const html = `<!DOCTYPE html>
-<html><head><title>Waiter Code Card</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:Arial,sans-serif;
-       padding:20px;max-width:420px;}
-  .header{text-align:center;margin-bottom:14px;
-    padding-bottom:10px;
-    border-bottom:2px solid #0D9488;}
-  .header h2{font-size:16px;margin-bottom:3px;}
-  .header p{font-size:10px;color:#666;}
-  table{width:100%;border-collapse:collapse;}
-  th{background:#f1f5f9;padding:7px 8px;
-     text-align:left;font-size:11px;
-     border:1px solid #e2e8f0;}
-  td{padding:6px 8px;border:1px solid #e2e8f0;
-     font-size:12px;}
-  .code{font-weight:800;font-size:15px;
-    color:#0D9488;font-family:monospace;
-    text-align:center;width:45px;}
-  .price{text-align:right;width:60px;}
-  .cat{font-size:10px;color:#9CA3AF;width:80px;}
-  .footer{margin-top:12px;padding:8px;
-    background:#f8fafc;border-radius:6px;
-    font-size:10px;color:#6B7280;
-    text-align:center;line-height:1.6;}
-  .footer strong{color:#0D9488;}
-</style></head><body>
-<div class="header">
-  <h2>${settings.restaurantName || 'VoxBill'}</h2>
-  <p>Waiter Order Code Card · ${now}</p>
-</div>
-<table><thead><tr>
-  <th>Code</th><th>Item</th>
-  <th>Category</th><th>Price</th>
-</tr></thead><tbody>
-${items.map(i => `<tr>
-  <td class="code">${i.code}</td>
-  <td>${i.name}</td>
-  <td class="cat">${i.category}</td>
-  <td class="price">₹${i.price}</td>
-</tr>`).join('')}
-</tbody></table>
-<div class="footer">
-  <strong>How to write orders:</strong><br>
-  T[table number] then one item per line:<br>
-  <strong>CODE x QTY</strong> 
-  — Example: T5 · 1x2 · 3x1 · 7x3
-</div>
-</body></html>`;
-        const w = window.open('', '_blank');
-        w.document.write(html);
-        w.document.close();
-        w.print();
-    } catch (err) {
-        VB.showToast('Could not print card.','error');
-    }
-});
     </script>
 </body>
 

@@ -168,6 +168,32 @@
             flex-wrap: wrap;
         }
 
+        .rush-format-hint {
+            background: rgba(34, 211, 238, 0.06);
+            border: 1px solid rgba(34, 211, 238, 0.15);
+            border-radius: var(--radius-lg);
+            padding: 1rem 1.25rem;
+            margin-top: 1rem;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .rush-format-hint strong {
+            color: var(--text);
+            display: block;
+            margin-bottom: 0.3rem;
+            font-size: 0.85rem;
+        }
+
+        .rush-format-hint code {
+            background: rgba(255,255,255,0.06);
+            padding: 0.1rem 0.35rem;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+
         /* Smart UI overrides */
         body.ui-smart .rush-hero-icon {
             background: linear-gradient(135deg, rgba(13, 148, 136, 0.12), rgba(139, 92, 246, 0.08));
@@ -198,7 +224,7 @@
                 <div class="page-header" style="margin-bottom: 1rem;">
                     <div class="page-header-left">
                         <h1 class="page-title">Rush Mode</h1>
-                        <p class="page-subtitle">Paper-to-Order — Snap, extract, inject</p>
+                        <p class="page-subtitle">Structured Paper Slip to Digital Order</p>
                     </div>
                 </div>
 
@@ -206,9 +232,8 @@
                 <div class="card" id="rushStepUpload">
                     <div class="rush-hero">
                         <div class="rush-hero-icon"><i class="fa-solid fa-camera"></i></div>
-                        <h2>Upload a Handwritten Order Photo</h2>
-                        <p>Take a photo of a paper order or upload an image. VoxBill AI will extract the items and let
-                            you review before injecting.</p>
+                        <h2>Upload a Handwritten Order Slip</h2>
+                        <p>Write menu codes on paper, snap a photo, and VoxBill extracts items using your menu codes.</p>
                     </div>
                     <div class="rush-drop-zone" id="rushDropZone">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -217,6 +242,12 @@
                         <p style="font-size:0.8rem; color:var(--text-muted);">Supports JPG, PNG, HEIC — max 10 MB</p>
                         <input type="file" id="rushFileInput" accept="image/*" capture="environment"
                             style="display:none;">
+                    </div>
+                    <div class="rush-format-hint">
+                        <strong><i class="fa-solid fa-circle-info" style="margin-right:0.3rem;"></i> Supported Slip Format</strong>
+                        Write one entry per line: <code>T - 2</code> (table), <code>C - Mehul</code> (customer),
+                        <code>1 x 1</code> <code>2 x 4</code> <code>3 x 2</code> (menu code x qty),
+                        <code>N less spicy</code> (note).
                     </div>
                     <div class="rush-preview" id="rushPreview" style="display:none;">
                         <img id="rushPreviewImg" alt="Uploaded order">
@@ -228,8 +259,8 @@
                 <!-- Step 2: Loading -->
                 <div class="card rush-loading" id="rushStepLoading" style="display:none;">
                     <div class="spinner-ring"></div>
-                    <h3 style="color:var(--text); margin:0 0 0.5rem;">Analyzing Handwriting...</h3>
-                    <p style="color:var(--text-muted); font-size:0.88rem;">Matching items against your menu</p>
+                    <h3 style="color:var(--text); margin:0 0 0.5rem;">Reading Slip Codes...</h3>
+                    <p style="color:var(--text-muted); font-size:0.88rem;">Matching codes against your menu</p>
                 </div>
 
                 <!-- Step 3: Review & Confirm -->
@@ -307,22 +338,88 @@
             VB.initManagerVoice();
             VB.initSSENotifications();
 
+            // ── Constants ────────────────────────────────
+            const DRAFT_KEY = 'vb_rush_mode_draft';
+
             // ── Elements ─────────────────────────────────
-            const stepUpload = document.getElementById('rushStepUpload');
-            const stepLoading = document.getElementById('rushStepLoading');
-            const stepReview = document.getElementById('rushStepReview');
-            const dropZone = document.getElementById('rushDropZone');
-            const fileInput = document.getElementById('rushFileInput');
-            const previewDiv = document.getElementById('rushPreview');
-            const previewImg = document.getElementById('rushPreviewImg');
-            const reviewBody = document.getElementById('rushReviewTableBody');
-            const confirmBtn = document.getElementById('rushConfirmBtn');
-            const resetBtn = document.getElementById('rushResetBtn');
-            const estTotal = document.getElementById('rushEstTotal');
+            const stepUpload    = document.getElementById('rushStepUpload');
+            const stepLoading   = document.getElementById('rushStepLoading');
+            const stepReview    = document.getElementById('rushStepReview');
+            const dropZone      = document.getElementById('rushDropZone');
+            const fileInput     = document.getElementById('rushFileInput');
+            const previewDiv    = document.getElementById('rushPreview');
+            const previewImg    = document.getElementById('rushPreviewImg');
+            const reviewBody    = document.getElementById('rushReviewTableBody');
+            const confirmBtn    = document.getElementById('rushConfirmBtn');
+            const resetBtn      = document.getElementById('rushResetBtn');
+            const estTotal      = document.getElementById('rushEstTotal');
+            const tableInput    = document.getElementById('rushTableInput');
+            const customerInput = document.getElementById('rushCustomerInput');
+            const noteInput     = document.getElementById('rushNoteInput');
 
             let extractedItems = [];
 
-            // ── Drop Zone ────────────────────────────────
+            // ══════════════════════════════════════════════
+            //  PERSISTENCE — save/load/clear draft
+            // ══════════════════════════════════════════════
+            function saveDraft() {
+                try {
+                    const draft = {
+                        items: extractedItems,
+                        tableNo: tableInput.value,
+                        customerName: customerInput.value,
+                        note: noteInput.value,
+                        imageDataUrl: previewImg.src || '',
+                        step: 'review',
+                        ts: Date.now()
+                    };
+                    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+                } catch (e) { console.warn('Rush draft save failed', e); }
+            }
+
+            function loadDraft() {
+                try {
+                    const raw = localStorage.getItem(DRAFT_KEY);
+                    if (!raw) return null;
+                    const draft = JSON.parse(raw);
+                    if (draft.ts && (Date.now() - draft.ts) > 4 * 60 * 60 * 1000) {
+                        clearDraft();
+                        return null;
+                    }
+                    return draft;
+                } catch (e) { return null; }
+            }
+
+            function clearDraft() {
+                localStorage.removeItem(DRAFT_KEY);
+            }
+
+            // ── Restore saved draft on page load ─────────
+            const savedDraft = loadDraft();
+            if (savedDraft && savedDraft.step === 'review' && savedDraft.items && savedDraft.items.length > 0) {
+                extractedItems      = savedDraft.items;
+                tableInput.value    = savedDraft.tableNo || '';
+                customerInput.value = savedDraft.customerName || '';
+                noteInput.value     = savedDraft.note || '';
+                if (savedDraft.imageDataUrl) {
+                    previewImg.src = savedDraft.imageDataUrl;
+                    previewDiv.style.display = 'block';
+                }
+                stepUpload.style.display  = 'none';
+                stepLoading.style.display = 'none';
+                stepReview.style.display  = 'block';
+                renderReviewTable();
+                VB.showToast('Restored your in-progress Rush order', 'info');
+            }
+
+            // ── Bind persistence to form inputs ──────────
+            tableInput.addEventListener('input',    saveDraft);
+            customerInput.addEventListener('input', saveDraft);
+            noteInput.addEventListener('input',     saveDraft);
+
+            // ══════════════════════════════════════════════
+            //  DROP ZONE & FILE INPUT
+            // ══════════════════════════════════════════════
             dropZone.addEventListener('click', () => fileInput.click());
             dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
             dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
@@ -334,13 +431,11 @@
                     handleUpload(e.dataTransfer.files[0]);
                 }
             });
-
             fileInput.addEventListener('change', e => {
                 if (e.target.files.length) handleUpload(e.target.files[0]);
             });
 
             function handleUpload(file) {
-                // Show image preview
                 const reader = new FileReader();
                 reader.onload = ev => {
                     previewImg.src = ev.target.result;
@@ -348,60 +443,242 @@
                 };
                 reader.readAsDataURL(file);
 
-                // Transition to loading
                 setTimeout(() => {
-                    stepUpload.style.display = 'none';
+                    stepUpload.style.display  = 'none';
                     stepLoading.style.display = 'block';
                 }, 400);
 
-                // Simulate AI extraction (replace with real API later)
-                setTimeout(() => {
-                    runExtraction();
-                }, 2200);
+                setTimeout(() => { runExtraction(file); }, 1000);
             }
 
-            // ── Mock Extraction ──────────────────────────
-            async function runExtraction() {
-                // Load real menu if available
+            // ══════════════════════════════════════════════
+            //  IMAGE PREPROCESSING
+            // ══════════════════════════════════════════════
+            function preprocessImageForOCR(file) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const scale = 2;
+                            canvas.width  = img.width * scale;
+                            canvas.height = img.height * scale;
+                            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            const data = imageData.data;
+                            for (let i = 0; i < data.length; i += 4) {
+                                const v = 0.2126 * data[i] + 0.7152 * data[i+1] + 0.0722 * data[i+2];
+                                const c = v >= 130 ? 255 : 0;
+                                data[i] = data[i+1] = data[i+2] = c;
+                            }
+                            ctx.putImageData(imageData, 0, 0);
+                            resolve(canvas.toDataURL('image/png'));
+                        };
+                        img.src = e.target.result;
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            // ══════════════════════════════════════════════
+            //  OCR CHARACTER NORMALIZATION
+            // ══════════════════════════════════════════════
+            function normalizeOCRLine(raw) {
+                let s = raw;
+                // Pipe | → 1
+                s = s.replace(/\|/g, '1');
+                // Normalize multiplication signs: × * → x
+                s = s.replace(/[×*]/g, 'x');
+                // Uppercase X between digits → lowercase x
+                s = s.replace(/(\d)\s*X\s*(\d)/g, '$1 x $2');
+                // If line looks like a code/qty pattern (only digits, I, l, x, spaces)
+                // replace ALL I and l with 1
+                if (/^[IlOo\d\sxX×*\-]+$/.test(s)) {
+                    s = s.replace(/[Il]/g, '1');
+                    s = s.replace(/[Oo]/g, '0');
+                }
+                // Collapse spaces, strip stray punctuation
+                s = s.replace(/\s+/g, ' ').trim();
+                s = s.replace(/^[.,;:!?]+/, '').replace(/[.,;:!?]+$/, '');
+                return s;
+            }
+
+            // ══════════════════════════════════════════════
+            //  TESSERACT OCR EXTRACTION
+            // ══════════════════════════════════════════════
+            async function runExtraction(file) {
                 let menuItems = [];
                 try {
                     const res = await VoxAPI.getMenu();
                     if (res.ok) menuItems = res.data.data || res.data || [];
-                } catch (e) { /* fallback to mock */ }
-
-                // Mock detected handwriting → menu mapping
-                let mockData = [
-                    { text: 'Pnj Thali 2', mappedName: 'Punjabi Thali', qty: 2, price: 150, confidence: 'high' },
-                    { text: 'Btn Naan x3', mappedName: 'Butter Naan', qty: 3, price: 30, confidence: 'high' },
-                    { text: 'Paneer tika', mappedName: 'Paneer Tikka', qty: 1, price: 180, confidence: 'low' },
-                    { text: 'masala dosa 1', mappedName: 'Masala Dosa', qty: 1, price: 90, confidence: 'high' }
-                ];
-
-                // Try to match against real menu
-                if (menuItems.length > 0) {
-                    mockData.forEach(mock => {
-                        const keyword = mock.mappedName.toLowerCase().split(' ')[0];
-                        const match = menuItems.find(m => m.name.toLowerCase().includes(keyword));
-                        if (match) {
-                            mock.mappedName = match.name;
-                            mock.price = match.price;
-                        }
-                    });
+                } catch (e) {
+                    console.warn('Could not load menu for extraction.', e);
                 }
 
-                extractedItems = mockData;
+                try {
+                    const processedImageURL = await preprocessImageForOCR(file);
+                    const worker = await Tesseract.createWorker('eng');
+                    await worker.setParameters({
+                        tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
+                        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -xX|Il:.\n',
+                    });
 
-                // Transition to review
-                stepLoading.style.display = 'none';
-                stepReview.style.display = 'block';
+                    const result = await worker.recognize(processedImageURL);
+                    const rawText = result.data.text;
+                    console.log("[Rush OCR] Raw Extracted Text:\n", rawText);
+                    await worker.terminate();
 
-                document.getElementById('rushTableInput').value = Math.floor(Math.random() * 10) + 1;
-                document.getElementById('rushCustomerInput').value = 'Walk-in (auto-detected)';
+                    const parsed = parseOCRText(rawText, menuItems);
+                    extractedItems = parsed.items;
 
-                renderReviewTable();
+                    stepLoading.style.display = 'none';
+                    stepReview.style.display  = 'block';
+
+                    tableInput.value    = parsed.tableNo || '';
+                    customerInput.value = parsed.customerName || '';
+                    noteInput.value     = parsed.notes || '';
+
+                    renderReviewTable();
+                    saveDraft();
+
+                    if (extractedItems.length === 0) {
+                        VB.showToast('No items detected — check the slip format', 'info');
+                    }
+                } catch (error) {
+                    console.error('OCR Error:', error);
+                    VB.showToast('Could not process image. Try again with a clearer photo.', 'error');
+                    stepLoading.style.display = 'none';
+                    stepUpload.style.display  = 'block';
+                }
             }
 
-            // ── Render Review Table ──────────────────────
+            // ══════════════════════════════════════════════
+            //  PARSE OCR TEXT
+            // ══════════════════════════════════════════════
+            function parseOCRText(rawText, menuItems) {
+                const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                const results = [];
+                let detectedTable    = null;
+                let detectedCustomer = null;
+                let detectedNotes    = [];
+
+                // Build code→item map
+                const codeMap = {};
+                for (const item of menuItems) {
+                    if (item.code != null && item.code !== '') {
+                        codeMap[String(parseInt(item.code, 10))] = item;
+                    }
+                }
+
+                for (const rawLine of lines) {
+                    // Step 1: basic cleanup
+                    let clean = rawLine.replace(/\|/g, '1').replace(/[\[\]\(\)]/g, '').trim();
+                    // Step 2: normalize OCR confusions
+                    clean = normalizeOCRLine(clean);
+                    if (clean.length === 0) continue;
+
+                    // ── Table marker: T-2, T 2, T2, Table 2 ──
+                    const tableMatch = clean.match(/^[Tt](?:able)?\s*[-–—]?\s*(\d+)/i);
+                    if (tableMatch) {
+                        detectedTable = tableMatch[1];
+                        continue;
+                    }
+
+                    // ── Customer marker: C - mehul, C mehul, Customer mehul ──
+                    const custMatch = clean.match(/^[Cc](?:ustomer)?\s*[-–—:\s]\s*([a-zA-Z][a-zA-Z\s]*)/i);
+                    if (custMatch) {
+                        detectedCustomer = custMatch[1].trim();
+                        continue;
+                    }
+
+                    // ── Note marker: N no onion, Note less spicy ──
+                    const noteMatch = clean.match(/^[Nn](?:ote)?\s*[-–—:]?\s*(.+)/i);
+                    if (noteMatch) {
+                        detectedNotes.push(noteMatch[1].trim());
+                        continue;
+                    }
+
+                    // ── Item code patterns ──
+                    const patterns = [
+                        /^(\d+)\s*[xX]\s*(\d+)$/,    // 1 x 2
+                        /^(\d+)\s+(\d+)$/,           // 1 2
+                        /^(\d+)$/,                   // 1 (qty = 1)
+                    ];
+
+                    let code = null;
+                    let qty  = 1;
+                    for (const pattern of patterns) {
+                        const m = clean.match(pattern);
+                        if (m) {
+                            code = m[1];
+                            qty  = m[2] ? parseInt(m[2], 10) : 1;
+                            break;
+                        }
+                    }
+
+                    if (code) {
+                        const numericCode = String(parseInt(code, 10));
+                        const menuItem = codeMap[numericCode];
+                        if (menuItem) {
+                            const existing = results.find(r => r.menuId === menuItem._id);
+                            if (existing) {
+                                existing.qty += qty;
+                            } else {
+                                results.push({
+                                    text: clean,
+                                    mappedName: menuItem.name,
+                                    qty,
+                                    price: menuItem.price,
+                                    menuId: menuItem._id,
+                                    confidence: 'high'
+                                });
+                            }
+                        } else {
+                            results.push({
+                                text: clean,
+                                mappedName: 'Unknown Code: ' + numericCode,
+                                qty,
+                                price: 0,
+                                menuId: null,
+                                confidence: 'low'
+                            });
+                        }
+                        continue;
+                    }
+
+                    // ── Fallback: name match (for printed items) ──
+                    for (const item of menuItems) {
+                        if (item.name && clean.toLowerCase().includes(item.name.toLowerCase())) {
+                            const esc = item.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            const nm  = clean.match(new RegExp(esc + '\\s*[xX]?\\s*(\\d+)?', 'i'));
+                            results.push({
+                                text: clean,
+                                mappedName: item.name,
+                                qty: (nm && nm[1]) ? parseInt(nm[1], 10) : 1,
+                                price: item.price,
+                                menuId: item._id,
+                                confidence: 'high'
+                            });
+                            break;
+                        }
+                    }
+                    // Garbage lines silently dropped
+                }
+
+                return {
+                    tableNo: detectedTable,
+                    customerName: detectedCustomer,
+                    notes: detectedNotes.join(' - '),
+                    items: results
+                };
+            }
+
+            // ══════════════════════════════════════════════
+            //  RENDER REVIEW TABLE
+            // ══════════════════════════════════════════════
             function renderReviewTable() {
                 reviewBody.innerHTML = '';
                 let total = 0;
@@ -410,7 +687,7 @@
                     const lineTotal = item.qty * item.price;
                     total += lineTotal;
                     const confClass = item.confidence === 'high' ? 'confidence-high' : 'confidence-low';
-                    const confIcon = item.confidence === 'high'
+                    const confIcon  = item.confidence === 'high'
                         ? '<i class="fa-solid fa-circle-check"></i>'
                         : '<i class="fa-solid fa-circle-exclamation"></i>';
 
@@ -428,36 +705,41 @@
                     reviewBody.appendChild(tr);
                 });
 
-                estTotal.textContent = `₹${total}`;
+                estTotal.textContent = '₹' + total;
 
                 if (extractedItems.length === 0) {
                     reviewBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No items detected — try another photo</td></tr>';
                 }
 
-                // Bind events
+                // Qty change
                 reviewBody.querySelectorAll('[data-field="qty"]').forEach(input => {
                     input.addEventListener('change', e => {
                         const idx = parseInt(e.target.dataset.idx);
                         extractedItems[idx].qty = parseInt(e.target.value) || 1;
                         renderReviewTable();
+                        saveDraft();
                     });
                 });
+                // Remove row
                 reviewBody.querySelectorAll('[data-remove]').forEach(btn => {
                     btn.addEventListener('click', e => {
                         const idx = parseInt(e.currentTarget.dataset.remove);
                         extractedItems.splice(idx, 1);
                         renderReviewTable();
+                        saveDraft();
                     });
                 });
             }
 
-            // ── Confirm & Send ───────────────────────────
+            // ══════════════════════════════════════════════
+            //  CONFIRM & SEND ORDER
+            // ══════════════════════════════════════════════
             confirmBtn.addEventListener('click', async () => {
                 if (extractedItems.length === 0) {
                     VB.showToast('No items to submit', 'error');
                     return;
                 }
-                const tableNo = document.getElementById('rushTableInput').value;
+                const tableNo = tableInput.value;
                 if (!tableNo) {
                     VB.showToast('Table number is required', 'error');
                     return;
@@ -469,7 +751,6 @@
                     price: i.price,
                     total: i.qty * i.price
                 }));
-
                 const subtotal = finalItems.reduce((s, i) => s + i.total, 0);
 
                 confirmBtn.disabled = true;
@@ -478,17 +759,18 @@
                 try {
                     const res = await VoxAPI.saveOrder({
                         tableNumber: parseInt(tableNo),
-                        customerName: document.getElementById('rushCustomerInput').value || '',
+                        customerName: customerInput.value || '',
                         items: finalItems,
                         status: 'ready_for_billing',
-                        notes: document.getElementById('rushNoteInput').value || '',
-                        subtotal: subtotal,
+                        notes: noteInput.value || '',
+                        subtotal,
                         total: subtotal
                     });
 
                     if (res.ok) {
-                        VB.showToast(`Table ${tableNo} order injected! ${finalItems.length} items`, 'success');
-                        VB.addNotification(`Rush Mode: Table ${tableNo} order sent`, 'priority');
+                        clearDraft();
+                        VB.showToast('Table ' + tableNo + ' order injected! ' + finalItems.length + ' items', 'success');
+                        VB.addNotification('Rush Mode: Table ' + tableNo + ' order sent', 'priority');
                         setTimeout(() => { window.location.href = '../pages/orders.html'; }, 1200);
                     } else {
                         throw new Error(res.data?.message || 'Failed');
@@ -500,14 +782,21 @@
                 }
             });
 
-            // ── Reset ────────────────────────────────────
+            // ══════════════════════════════════════════════
+            //  RESET / START OVER
+            // ══════════════════════════════════════════════
             resetBtn.addEventListener('click', () => {
                 extractedItems = [];
-                fileInput.value = '';
-                previewDiv.style.display = 'none';
-                stepReview.style.display = 'none';
+                fileInput.value     = '';
+                previewImg.src      = '';
+                previewDiv.style.display  = 'none';
+                stepReview.style.display  = 'none';
                 stepLoading.style.display = 'none';
-                stepUpload.style.display = 'block';
+                stepUpload.style.display  = 'block';
+                tableInput.value    = '';
+                customerInput.value = '';
+                noteInput.value     = '';
+                clearDraft();
             });
         });
     </script>

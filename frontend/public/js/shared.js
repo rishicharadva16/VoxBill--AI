@@ -271,7 +271,7 @@ function addNotification(message, type = 'info') {
     renderNotifPanel();
 
     // Also show a toast for immediate feedback if on dashboard or if priority
-    if (window.location.pathname.endsWith('index.html') || type === 'priority') {
+    if (window.location.pathname.endsWith('dashboard.html') || type === 'priority') {
         showToast(message, type === 'priority' ? 'info' : 'success');
     }
 }
@@ -398,7 +398,7 @@ function buildSidebar(activePage) {
     const role = user ? user.role : 'waiter';
 
     const menu = [
-        { name: 'Dashboard', icon: 'fa-gauge-high', link: '../pages/index.html' }
+        { name: 'Dashboard', icon: 'fa-gauge-high', link: '../pages/dashboard.html' }
     ];
 
     if (role === 'manager') {
@@ -585,7 +585,7 @@ function initSidebarBehavior() {
     }
 
     // ── Highlight active nav by filename ──────────────────
-    const currentFile = window.location.pathname.split('/').pop() || 'index.html';
+    const currentFile = window.location.pathname.split('/').pop() || 'dashboard.html';
     sidebar.querySelectorAll('.nav-item').forEach(item => {
         const href = (item.getAttribute('href') || '').split('#')[0].split('/').pop();
         if (href && href === currentFile) item.classList.add('active');
@@ -637,7 +637,7 @@ function buildTopbar(pageTitle) {
             </div>
             ` : ''}
 
-            <a href="../pages/index.html" class="icon-btn-top" title="Go to Dashboard"><i class="fa-solid fa-house"></i></a>
+            <a href="../pages/dashboard.html" class="icon-btn-top" title="Go to Dashboard"><i class="fa-solid fa-house"></i></a>
         </div>
     </header>`;
 }
@@ -1613,7 +1613,7 @@ function initManagerVoice() {
         if (has(t, 'dashboard', 'home page',
             'open dashboard', 'go to dashboard',
             'main page', 'back to home')) {
-            go('../pages/index.html', 'Dashboard');
+            go('../pages/dashboard.html', 'Dashboard');
             return;
         }
 

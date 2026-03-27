@@ -664,7 +664,7 @@
                     } else if (selectedUsername) {
                         localStorage.setItem('userName', selectedUsername);
                     }
-                    window.location.href = 'index.html';
+                    window.location.href = 'dashboard.html';
                 } else {
                     console.error('[Auth Error]', res.status, res.data);
                     const msg = (res.data && (res.data.message || res.data.error)) || 'Communication error';

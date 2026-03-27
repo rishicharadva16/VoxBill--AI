@@ -9,8 +9,8 @@
     'use strict';
 
     // ── Route Guard ─────────────────────────────────────────
-    const PROTECTED_PAGES = ['index.html', 'analytics.html', 'settings.html', 'menu.html', 'orders.html', 'voice.html', 'tables.html', 'staff.html'];
-    const currentFile = window.location.pathname.split('/').pop() || 'index.html';
+    const PROTECTED_PAGES = ['dashboard.html', 'analytics.html', 'settings.html', 'menu.html', 'orders.html', 'voice.html', 'tables.html', 'staff.html'];
+    const currentFile = window.location.pathname.split('/').pop() || 'dashboard.html';
 
     function checkAuth() {
         if (!window.VoxAPI) return; // Wait for api.js
@@ -23,14 +23,14 @@
             return false;
         }
         if (isLoggedIn && isLoginPage) {
-            window.location.href = '../pages/index.html';
+            window.location.href = '../pages/dashboard.html';
             return false;
         }
 
         // Feature 6: Protect Manager Pages
         const MANAGER_ONLY = ['menu.html', 'analytics.html', 'settings.html', 'staff.html'];
         if (isLoggedIn && MANAGER_ONLY.includes(currentFile) && !VoxAPI.isManager()) {
-            window.location.href = '../pages/index.html';
+            window.location.href = '../pages/dashboard.html';
             return false;
         }
 
@@ -49,7 +49,7 @@
         if (!ok) return;
         sessionStorage.removeItem('greeted');
         if (window.VoxAPI) VoxAPI.logout();
-        window.location.href = '../pages/login.html';
+        window.location.href = '/pages/login.html';
     };
 
     // Use delegation for logout button as it's injected dynamically
@@ -108,13 +108,13 @@
         }
 
         // ── Highlight active nav item by URL filename ───────
-        const currentFile = window.location.pathname.split('/').pop() || 'index.html';
+        const currentFile = window.location.pathname.split('/').pop() || 'dashboard.html';
         document.querySelectorAll('.nav-item').forEach(item => {
             const href = (item.getAttribute('href') || '').split('#')[0].split('/').pop();
             if (href && href === currentFile) {
                 item.classList.add('active');
-            } else if (!href.includes('.html') && currentFile === 'index.html') {
-                // Hash anchors on index.html — don't remove active from the first link
+            } else if (!href.includes('.html') && currentFile === 'dashboard.html') {
+                // Hash anchors on dashboard.html — don't remove active from the first link
             }
         });
 
@@ -152,7 +152,7 @@
 
         // Navigation shortcuts
         const shortcuts = {
-            'd': '../pages/index.html',
+            'd': '../pages/dashboard.html',
             't': '../pages/tables.html',
             'o': '../pages/orders.html',
             'm': '../pages/menu.html',

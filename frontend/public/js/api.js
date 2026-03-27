@@ -20,7 +20,9 @@
     'use strict';
 
     // Dynamic base URL for mobile/ngrok support
-    const BASE = window.location.origin + "/api"; 
+    const BASE = window.location.hostname === 'localhost'
+        ? 'http://127.0.0.1:4000/api'
+        : 'https://voxbill-backend.onrender.com/api';
 
     /* ── Auth token helpers ──────────────────────────── */
     function getToken() { return sessionStorage.getItem('vb_jwt') || ''; }
@@ -81,7 +83,7 @@
         return r;
     }
 
-    function logout() { clearToken(); }
+    function logout() { clearToken(); window.location.href = '/pages/login.html'; }
     function isLoggedIn() { return !!getToken(); }
     function isManager() { const u = getUser(); return u && u.role === 'manager'; }
 

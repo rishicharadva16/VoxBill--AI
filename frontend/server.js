@@ -3,6 +3,9 @@ const cors = require('cors');
 const path = require('path');
 const http = require('http');
 
+const AI_SERVICE_URL = process.env.AI_URL
+    || 'http://127.0.0.1:5000/process-order';
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -83,7 +86,7 @@ app.use('/api', async (req, res) => {
 app.post('/order', async (req, res) => {
     try {
         const { text, token } = req.body;
-        const response = await fetch('http://127.0.0.1:5000/process-order', {
+        const response = await fetch(AI_SERVICE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text, token })

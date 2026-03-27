@@ -22,7 +22,7 @@
     // Dynamic base URL for mobile/ngrok support
     const BASE = window.location.hostname === 'localhost'
         ? 'http://127.0.0.1:4000/api'
-        : 'https://voxbill-backend.onrender.com/api';
+        : 'https://voxbill-backend.onrender.com';
 
     /* ── Auth token helpers ──────────────────────────── */
     function getToken() { return sessionStorage.getItem('vb_jwt') || ''; }
@@ -31,13 +31,13 @@
 
     function getUser() {
         try { return JSON.parse(localStorage.getItem('vb_db_user') || 'null'); }
-        catch(e) { return null; }
+        catch (e) { return null; }
     }
 
     /* ── Core fetch wrapper ──────────────────────────── */
     async function call(method, path, body) {
         const headers = { 'Content-Type': 'application/json' };
-        const token   = getToken();
+        const token = getToken();
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
         try {
@@ -110,29 +110,29 @@
 
     async function saveOrder(orderData) {
         return call('POST', '/orders', {
-            tableNumber:  orderData.tableNo || orderData.tableNumber,
+            tableNumber: orderData.tableNo || orderData.tableNumber,
             customerName: orderData.customerName || '',
-            items:        orderData.items || [],
-            status:       orderData.status,
-            notes:        orderData.note || orderData.notes || '',
-            subtotal:     orderData.subtotal,
-            discountAmt:  orderData.discountAmt,
-            gst:          orderData.gst,
-            total:        orderData.total
+            items: orderData.items || [],
+            status: orderData.status,
+            notes: orderData.note || orderData.notes || '',
+            subtotal: orderData.subtotal,
+            discountAmt: orderData.discountAmt,
+            gst: orderData.gst,
+            total: orderData.total
         });
     }
 
     async function saveDraftOrder(orderData) {
         return call('POST', '/orders', {
-            tableNumber:  orderData.tableNo || orderData.tableNumber,
+            tableNumber: orderData.tableNo || orderData.tableNumber,
             customerName: orderData.customerName || '',
-            items:        orderData.items || [],
-            status:       'draft',
-            notes:        orderData.note || orderData.notes || '',
-            subtotal:     orderData.subtotal || 0,
-            discountAmt:  orderData.discountAmt || 0,
-            gst:          orderData.gst || 0,
-            total:        orderData.total || 0
+            items: orderData.items || [],
+            status: 'draft',
+            notes: orderData.note || orderData.notes || '',
+            subtotal: orderData.subtotal || 0,
+            discountAmt: orderData.discountAmt || 0,
+            gst: orderData.gst || 0,
+            total: orderData.total || 0
         });
     }
 

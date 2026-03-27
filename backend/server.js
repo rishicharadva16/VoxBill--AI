@@ -70,6 +70,8 @@ app.use((err, req, res, next) => {
 });
 
 // ── Start server ──────────────────────────────────────
-app.listen(PORT, () => {
-    console.log(`🚀 VoxBill Backend running at http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`VoxBill Backend running on port ${PORT}`);
 });
+
+

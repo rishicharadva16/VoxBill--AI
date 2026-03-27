@@ -13,6 +13,6 @@
     }
   ],
   "env": {
-    "AI_URL": "https://voxbill-ai.onrender.com/process-order"
+    "AI_URL": "https://voxbill-ai.onrender.com"
   }
 }

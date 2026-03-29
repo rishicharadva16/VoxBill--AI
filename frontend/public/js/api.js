@@ -22,7 +22,7 @@
     // Dynamic base URL for mobile/ngrok support
     const BASE = window.location.hostname === 'localhost'
         ? 'http://127.0.0.1:4000/api'
-        : 'https://voxbill-backend.onrender.com';
+        : 'https://voxill-backend.onrender.com';
 
     /* ── Auth token helpers ──────────────────────────── */
     function getToken() { return sessionStorage.getItem('vb_jwt') || ''; }

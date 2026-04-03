@@ -461,18 +461,46 @@
                     reader.onload = e => {
                         img.onload = () => {
                             const canvas = document.createElement('canvas');
-                            const scale = 2;
-                            canvas.width  = img.width * scale;
+                            const scale = 3;
+                            canvas.width  = img.width  * scale;
                             canvas.height = img.height * scale;
                             const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+                            // White background first
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
                             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
                             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                             const data = imageData.data;
+
                             for (let i = 0; i < data.length; i += 4) {
-                                const v = 0.2126 * data[i] + 0.7152 * data[i+1] + 0.0722 * data[i+2];
-                                const c = v >= 130 ? 255 : 0;
-                                data[i] = data[i+1] = data[i+2] = c;
+                                const r = data[i];
+                                const g = data[i + 1];
+                                const b = data[i + 2];
+
+                                // Detect blue ink specifically
+                                const isBlueInk = b > r + 20 && b > g + 10;
+
+                                // Detect dark/black ink
+                                const brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                                const isDarkInk = brightness < 100;
+
+                                // Detect faint ruled lines (light blue - high b, medium r,g)
+                                const isFaintLine = b > 150 && r > 150 && g > 150 && b > r;
+
+                                if (isFaintLine) {
+                                    // Make ruled lines white
+                                    data[i] = data[i+1] = data[i+2] = 255;
+                                } else if (isBlueInk || isDarkInk) {
+                                    // Make ink black
+                                    data[i] = data[i+1] = data[i+2] = 0;
+                                } else {
+                                    // Everything else white
+                                    data[i] = data[i+1] = data[i+2] = 255;
+                                }
                             }
+
                             ctx.putImageData(imageData, 0, 0);
                             resolve(canvas.toDataURL('image/png'));
                         };
@@ -488,6 +516,17 @@
             // ══════════════════════════════════════════════
             function normalizeOCRLine(raw) {
                 let s = raw;
+                // Fix common OCR mistakes in numbers
+                // 'Z' often misread as '2'
+                s = s.replace(/\bZ\b/g, '2');
+                // 'S' often misread as '5'
+                s = s.replace(/\bS\b/g, '5');
+                // 'B' often misread as '8'
+                s = s.replace(/\bB\b/g, '8');
+                // 'G' often misread as '6'
+                s = s.replace(/\bG\b/g, '6');
+                // Fix 'l x 2' where l is misread 1
+                s = s.replace(/^l\s/g, '1 ');
                 // Pipe | → 1
                 s = s.replace(/\|/g, '1');
                 // Normalize multiplication signs: × * → x
@@ -522,8 +561,9 @@
                     const processedImageURL = await preprocessImageForOCR(file);
                     const worker = await Tesseract.createWorker('eng');
                     await worker.setParameters({
-                        tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
-                        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -xX|Il:.\n',
+                        tessedit_pageseg_mode: '6',
+                        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -xX',
+                        preserve_interword_spaces: '1',
                     });
 
                     const result = await worker.recognize(processedImageURL);
@@ -581,14 +621,14 @@
                     if (clean.length === 0) continue;
 
                     // ── Table marker: T-2, T 2, T2, Table 2 ──
-                    const tableMatch = clean.match(/^[Tt](?:able)?\s*[-–—]?\s*(\d+)/i);
+                    const tableMatch = clean.match(/^[Tt](?:able)?\s*[-–—\s]*\s*(\d+)/i);
                     if (tableMatch) {
                         detectedTable = tableMatch[1];
                         continue;
                     }
 
                     // ── Customer marker: C - mehul, C mehul, Customer mehul ──
-                    const custMatch = clean.match(/^[Cc](?:ustomer)?\s*[-–—:\s]\s*([a-zA-Z][a-zA-Z\s]*)/i);
+                    const custMatch = clean.match(/^[Cc](?:ustomer)?\s*[-–—:\s]*\s*([a-zA-Z][a-zA-Z\s]*)/i);
                     if (custMatch) {
                         detectedCustomer = custMatch[1].trim();
                         continue;

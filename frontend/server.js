@@ -27,7 +27,7 @@ app.get('/', (req, res) => {
 });
 
 // ── API Proxy Logic ──────────────────────────────────
-const BACKEND_URL = 'http://127.0.0.1:4000';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:4000';
 
 // ── SSE Proxy Bypass (must come BEFORE generic /api proxy) ──
 app.get('/api/notifications/stream', (req, res) => {

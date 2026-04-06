@@ -208,6 +208,44 @@ router.post('/reset-password/:token', async (req, res) => {
 });
 
 /* ─────────────────────────────────────────
+   POST /auth/reset-password-direct
+   Body: { identifier, password }
+   Internal fallback for environments without real email delivery.
+───────────────────────────────────────── */
+router.post('/reset-password-direct', async (req, res) => {
+    try {
+        const identifier = (req.body.identifier || req.body.email || req.body.username || '').toString().trim().toLowerCase();
+        const nextPassword = (req.body.password || '').toString();
+
+        if (!identifier) {
+            return res.status(400).json({ success: false, message: 'Email or username is required' });
+        }
+
+        if (!nextPassword || nextPassword.length < 6) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+        }
+
+        const query = identifier.includes('@')
+            ? { email: identifier }
+            : { $or: [{ username: identifier }, { email: identifier }] };
+
+        const user = await User.findOne(query);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'Account not found for this identifier' });
+        }
+
+        user.password = nextPassword;
+        user.passwordResetTokenHash = null;
+        user.passwordResetExpiresAt = null;
+        await user.save();
+
+        return res.json({ success: true, message: 'Password reset successfully. Please login with new password.' });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+/* ─────────────────────────────────────────
    GET /auth/staff/:restaurantId
    Used for Waiter Selection Login
 ───────────────────────────────────────── */

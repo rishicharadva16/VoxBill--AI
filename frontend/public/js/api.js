@@ -31,22 +31,27 @@
 
         const host = window.location.hostname;
         const isLocal = host === 'localhost' || host === '127.0.0.1';
+        const isPrivateIpv4 = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+        const isLocalLike = isLocal || isPrivateIpv4 || host.endsWith('.local');
 
-        if (isLocal) {
+        if (isLocalLike) {
             // Try same-origin proxy first (frontend server), then direct backend.
             return uniq([
                 '/api',
                 'http://127.0.0.1:3000/api',
                 'http://localhost:3000/api',
                 'http://127.0.0.1:4000',
-                'http://localhost:4000'
+                'http://localhost:4000',
+                'https://voxbill-backend.onrender.com'
             ]);
         }
 
         // Production: Vercel server proxy first, then direct backend fallback.
         return uniq([
             '/api',
-            'https://voxill-backend.onrender.com'
+            'https://voxbill-backend.onrender.com',
+            'http://127.0.0.1:4000',
+            'http://localhost:4000'
         ]);
     }
 
@@ -89,7 +94,7 @@
 
                 if (res.ok) {
                     activeBase = base;
-                    return { ok: true, status: res.status, data: json };
+                    return { ok: true, status: res.status, data: json, baseUsed: base };
                 }
 
                 // If this endpoint shape is wrong (/api prefix mismatch), try next candidate.
@@ -98,7 +103,7 @@
                     continue;
                 }
 
-                return { ok: false, status: res.status, data: json };
+                return { ok: false, status: res.status, data: json, baseUsed: base };
             } catch (err) {
                 lastNetworkErr = err;
             }
@@ -111,6 +116,7 @@
             status: 0,
             data: null,
             offline: true,
+            baseUsed: null,
             error: lastNetworkErr ? lastNetworkErr.message : 'All API candidates failed'
         };
     }
@@ -149,6 +155,10 @@
 
     async function resetPassword(token, password) {
         return call('POST', `/auth/reset-password/${encodeURIComponent(token)}`, { password });
+    }
+
+    async function resetPasswordDirect(identifier, password) {
+        return call('POST', '/auth/reset-password-direct', { identifier, password });
     }
 
     function logout() { clearToken(); window.location.href = '/pages/login.html'; }
@@ -298,7 +308,7 @@
     /* ── Expose globally ─────────────────────────────── */
     window.VoxAPI = {
         // Auth
-        login, register, forgotPassword, resetPassword, logout, isLoggedIn, isManager, getUser,
+        login, register, forgotPassword, resetPassword, resetPasswordDirect, logout, isLoggedIn, isManager, getUser,
         // Menu
         getMenu, addMenuItem, updateMenuItem, deleteMenuItem, bulkSyncMenu, clearAllMenu,
         // Orders
@@ -318,7 +328,7 @@
     // Auto-ping backend on load (silent)
     ping().then(r => {
         if (r.ok) {
-            console.log('%c✅ VoxBill Backend connected (port 4000)', 'color:#22D3EE;font-weight:bold');
+            console.log(`%c✅ VoxBill Backend connected (${r.baseUsed || 'unknown base'})`, 'color:#22D3EE;font-weight:bold');
         } else {
             console.warn('%c⚠️  VoxBill Backend unreachable – using localStorage offline mode', 'color:#f59e0b');
         }

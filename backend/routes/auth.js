@@ -130,12 +130,19 @@ router.post('/forgot-password', async (req, res) => {
             message: 'If the account exists, a password reset link has been sent.'
         };
 
-        const email = (req.body.email || '').toString().trim().toLowerCase();
-        if (!email) {
+        const identifier = (req.body.email || req.body.username || '').toString().trim();
+        if (!identifier) {
             return res.json(genericResponse);
         }
 
-        const user = await User.findOne({ email });
+        const normalized = identifier.toLowerCase();
+        const isEmailLike = normalized.includes('@');
+        const user = await User.findOne(
+            isEmailLike
+                ? { email: normalized }
+                : { $or: [{ username: normalized }, { email: normalized }] }
+        );
+
         if (!user) {
             return res.json(genericResponse);
         }
@@ -148,9 +155,15 @@ router.post('/forgot-password', async (req, res) => {
         await user.save();
 
         const resetLink = buildResetLink(rawToken);
-        await sendResetEmail(user.email, resetLink);
+        if (user.email) {
+            await sendResetEmail(user.email, resetLink);
+        }
 
-        return res.json(genericResponse);
+        return res.json({
+            success: true,
+            message: 'Reset link generated. Use the link below to update password.',
+            resetLink
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

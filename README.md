@@ -44,10 +44,17 @@ voxbill/
    npm run install:all
    pip install -r ai_service/requirements.txt
 
-3. Start everything:
+3. Configure Rush OCR API (Anthropic):
+   Set these environment variables where backend + ai_service run:
+   ANTHROPIC_API_KEY=your_key
+   ANTHROPIC_VISION_MODEL=claude-3-5-sonnet-20241022
+   RUSH_OCR_AI_URL=http://127.0.0.1:5000/process-rush-image
+   RUSH_OCR_TIMEOUT_SEC=25
+
+4. Start everything:
    npm start
 
-4. Open browser:
+5. Open browser:
    http://localhost:3000
 
 ## First Time

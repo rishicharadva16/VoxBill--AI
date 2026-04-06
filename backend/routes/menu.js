@@ -1,5 +1,6 @@
 const express = require('express');
 const Menu    = require('../models/Menu');
+const mongoose = require('mongoose');
 const { protect, requireRole } = 
     require('../middleware/authMiddleware');
 
@@ -215,6 +216,12 @@ router.patch('/:id/code',
     protect, requireRole('manager'),
     async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid menu item id'
+            });
+        }
         const { code } = req.body;
         if (code) {
             const existing = await Menu.findOne({
@@ -253,6 +260,12 @@ used by ${existing.name}`
 router.put('/:id', protect, requireRole('manager'), 
     async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid menu item id'
+            });
+        }
         const updateData = {};
         if (req.body.name !== undefined) 
             updateData.name = req.body.name;
@@ -286,6 +299,12 @@ router.put('/:id', protect, requireRole('manager'),
 router.delete('/:id', protect, 
     requireRole('manager'), async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid menu item id'
+            });
+        }
         const item = await Menu.findOneAndDelete({ 
             _id: req.params.id, 
             restaurantId: req.user.restaurantId 

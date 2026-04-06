@@ -487,6 +487,10 @@ ${items.map(i => `<tr>
 
 // Click code to edit it
 async function editItemCode(itemId, currentCode) {
+    if (!itemId || itemId === 'null' || itemId === 'undefined') {
+        VB.showToast('Cannot edit code for unsynced item. Reload menu first.', 'error');
+        return;
+    }
     const newCode = prompt(
         'Enter new code number for this item:\n' +
         'Leave blank to remove code.',

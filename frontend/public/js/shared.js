@@ -102,7 +102,22 @@ function saveMenu(items) {
     localStorage.setItem('vb_menu', JSON.stringify(items));
     // 2. Async sync to MongoDB if backend available and user is manager
     if (window.VoxAPI && VoxAPI.isManager()) {
-        VoxAPI.bulkSyncMenu(items).catch(() => { });
+        const safeItems = (Array.isArray(items) ? items : [])
+            .map(i => ({
+                name: (i && i.name ? String(i.name).trim() : ''),
+                category: (i && i.category ? String(i.category).trim() : ''),
+                price: Number(i && i.price),
+                code: (i && i.code != null && String(i.code).trim() !== '') ? Number(i.code) : null
+            }))
+            .filter(i => i.name && i.category && Number.isFinite(i.price) && i.price >= 0)
+            .map(i => ({
+                name: i.name,
+                category: i.category,
+                price: i.price,
+                code: Number.isFinite(i.code) ? i.code : null
+            }));
+
+        VoxAPI.bulkSyncMenu(safeItems).catch(() => { });
     }
 }
 
@@ -870,6 +885,8 @@ function initManagerVoice() {
     let wakeActive = false;
     let commandTimeout = null;
     let wakeRestarting = false;
+    let wakeRestartTimer = null;
+    let wakeAbortStreak = 0;
 
     const mvBtn = document.getElementById('mvBtn');
     const mvIcon = document.getElementById('mvIcon');
@@ -996,6 +1013,16 @@ function initManagerVoice() {
 
     // ── Wake word listener ───────────────────
 
+    function scheduleWakeRestart(delayMs) {
+        if (wakeRestartTimer || listening) return;
+        wakeRestarting = true;
+        wakeRestartTimer = setTimeout(() => {
+            wakeRestartTimer = null;
+            wakeRestarting = false;
+            startWakeListener();
+        }, delayMs);
+    }
+
     function startWakeListener() {
         if (wakeActive || listening) return;
         try {
@@ -1054,17 +1081,17 @@ function initManagerVoice() {
         wakeActive = false;
         // Auto restart wake listener after 500ms
         // unless command mode is active
-        if (!listening && !wakeRestarting) {
-            wakeRestarting = true;
-            setTimeout(() => {
-                wakeRestarting = false;
-                startWakeListener();
-            }, 500);
+        if (!listening) {
+            const delay = wakeAbortStreak > 3 ? 2500 : 800;
+            scheduleWakeRestart(delay);
         }
     };
 
     wakeRecognition.onerror = (e) => {
-        console.warn('Vox: Wake Listener error:', e.error);
+        // "aborted" is common during stop/start transitions; avoid noisy logs.
+        if (e.error !== 'aborted') {
+            console.warn('Vox: Wake Listener error:', e.error);
+        }
         wakeActive = false;
         if (e.error === 'not-allowed' ||
             e.error === 'service-not-allowed') {
@@ -1072,10 +1099,18 @@ function initManagerVoice() {
                 'Cannot restart wake listener.');
             return;
         }
-        // Restart on ALL other errors
-        setTimeout(() => {
-            if (!listening) startWakeListener();
-        }, 1000);
+
+        if (e.error === 'aborted') {
+            wakeAbortStreak += 1;
+        } else {
+            wakeAbortStreak = 0;
+        }
+
+        // Restart once (deduplicated) on transient errors.
+        if (!listening) {
+            const delay = wakeAbortStreak > 3 ? 2500 : 1000;
+            scheduleWakeRestart(delay);
+        }
     };
 
     // ── Activate command mode ────────────────

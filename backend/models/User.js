@@ -8,6 +8,8 @@ const userSchema = new mongoose.Schema({
     password:     { type: String, required: true, minlength: 6 },
     role:         { type: String, enum: ['manager', 'waiter'], default: 'waiter' },
     restaurantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant' },
+    passwordResetTokenHash: { type: String, default: null },
+    passwordResetExpiresAt: { type: Date, default: null },
 }, { timestamps: true });
 
 // Hash password before saving

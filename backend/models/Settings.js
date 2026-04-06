@@ -15,6 +15,9 @@ const settingsSchema = new mongoose.Schema({
     logoDataUrl:     { type: String, default: '' },
     invoiceCounter:  { type: Number, default: 0 },
     restaurantPin:   { type: String, default: '' },
+    rushOcrDailyCap: { type: Number, default: 100 },
+    rushOcrUsageDate:{ type: String, default: '' },
+    rushOcrUsageCount:{ type: Number, default: 0 },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Settings', settingsSchema);

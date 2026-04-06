@@ -1,5 +1,7 @@
 const express    = require('express');
 const jwt        = require('jsonwebtoken');
+const crypto     = require('crypto');
+const nodemailer = require('nodemailer');
 const User       = require('../models/User');
 const Restaurant = require('../models/Restaurant');
 const Settings   = require('../models/Settings');
@@ -8,6 +10,47 @@ const router = express.Router();
 
 const signToken = (id) =>
     jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '24h' });
+
+const RESET_TOKEN_TTL_MINUTES = Number(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES || 30);
+
+function buildMailTransport() {
+    if (!process.env.SMTP_HOST || !process.env.SMTP_PORT || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        return null;
+    }
+
+    return nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT),
+        secure: Number(process.env.SMTP_PORT) === 465,
+        auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+        }
+    });
+}
+
+const mailTransport = buildMailTransport();
+
+function buildResetLink(rawToken) {
+    const base = (process.env.FRONTEND_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+    return `${base}/pages/reset-password.html?token=${encodeURIComponent(rawToken)}`;
+}
+
+async function sendResetEmail(email, link) {
+    if (!mailTransport) {
+        console.log(`[PasswordReset] SMTP not configured. Reset link for ${email}: ${link}`);
+        return;
+    }
+
+    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+    await mailTransport.sendMail({
+        from,
+        to: email,
+        subject: 'VoxBill password reset',
+        text: `Use this link to reset your VoxBill password: ${link}\n\nThis link expires in ${RESET_TOKEN_TTL_MINUTES} minutes.`,
+        html: `<p>Use this link to reset your VoxBill password:</p><p><a href="${link}">${link}</a></p><p>This link expires in ${RESET_TOKEN_TTL_MINUTES} minutes.</p>`
+    });
+}
 
 /* ─────────────────────────────────────────
    POST /auth/register
@@ -71,6 +114,81 @@ router.post('/login', async (req, res) => {
             user: { id: user._id, name: user.name, email: user.email, username: user.username, role: user.role,
                     restaurantId: user.restaurantId }
         });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+/* ─────────────────────────────────────────
+   POST /auth/forgot-password
+   Body: { email }
+───────────────────────────────────────── */
+router.post('/forgot-password', async (req, res) => {
+    try {
+        const genericResponse = {
+            success: true,
+            message: 'If the account exists, a password reset link has been sent.'
+        };
+
+        const email = (req.body.email || '').toString().trim().toLowerCase();
+        if (!email) {
+            return res.json(genericResponse);
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.json(genericResponse);
+        }
+
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+        user.passwordResetTokenHash = hashedToken;
+        user.passwordResetExpiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
+        await user.save();
+
+        const resetLink = buildResetLink(rawToken);
+        await sendResetEmail(user.email, resetLink);
+
+        return res.json(genericResponse);
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+/* ─────────────────────────────────────────
+   POST /auth/reset-password/:token
+   Body: { password }
+───────────────────────────────────────── */
+router.post('/reset-password/:token', async (req, res) => {
+    try {
+        const rawToken = (req.params.token || '').trim();
+        const nextPassword = (req.body.password || '').toString();
+
+        if (!rawToken) {
+            return res.status(400).json({ success: false, message: 'Reset token is required' });
+        }
+
+        if (!nextPassword || nextPassword.length < 6) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+        }
+
+        const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+        const user = await User.findOne({
+            passwordResetTokenHash: hashedToken,
+            passwordResetExpiresAt: { $gt: new Date() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ success: false, message: 'Reset link is invalid or expired' });
+        }
+
+        user.password = nextPassword;
+        user.passwordResetTokenHash = null;
+        user.passwordResetExpiresAt = null;
+        await user.save();
+
+        res.json({ success: true, message: 'Password updated successfully' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

@@ -21,10 +21,23 @@ def load_menu(backend_url=None, token=None):
             with urllib.request.urlopen(req, timeout=3) as resp:
                 data = json.loads(resp.read().decode())
                 if data.get('success') and data.get('data'):
-                    # Convert array format to dict: {name: price}
+                    by_name = {}
+                    by_code = {}
+                    for item in data['data']:
+                        name = (item.get('name') or '').strip().lower()
+                        price = item.get('price', 0)
+                        if not name:
+                            continue
+                        by_name[name] = price
+                        code = item.get('code', None)
+                        if code is not None and str(code).strip() != '':
+                            by_code[str(int(code))] = {
+                                'name': name,
+                                'price': price
+                            }
                     return {
-                        item['name'].lower(): item['price']
-                        for item in data['data']
+                        'by_name': by_name,
+                        'by_code': by_code
                     }
         except Exception as e:
             print(f"[menu] Backend unreachable, using local menu.json: {e}")
@@ -32,7 +45,11 @@ def load_menu(backend_url=None, token=None):
     # Fallback to static file
     filepath = os.path.join(os.path.dirname(__file__), 'menu.json')
     with open(filepath, 'r', encoding='utf-8') as f:
-        return json.load(f)
+        by_name = json.load(f)
+        return {
+            'by_name': by_name,
+            'by_code': {}
+        }
 
 # Dictionary for converting common word numbers to integers (English + Hindi)
 WORD_TO_NUM = {
@@ -47,8 +64,82 @@ WORD_TO_NUM = {
 def clean_text(t):
     return re.sub(r'\b(and|aur|x)\b', '', t).strip()
 
+
+def parse_coded_segments(text, code_map):
+    """
+    Parse compact coded slips where each token means code x qty.
+    Example: "1 x 2, 3 x 1" => code 1 qty 2, code 3 qty 1
+    """
+    items = []
+    grand_total = 0
+    dropped_invalid_codes = 0
+    coded_pattern_seen = False
+
+    for part in re.split(r'[\n,;/]+', text):
+        segment = part.strip()
+        if not segment:
+            continue
+
+        # Skip metadata lines commonly present in rush slips.
+        if re.match(r'^[Tt](?:able)?\s*[-–—:\s]*\d+', segment):
+            continue
+        if re.match(r'^[Cc](?:ustomer)?\s*[-–—:\s]*', segment):
+            continue
+        if re.match(r'^[Nn](?:ote)?\s*[-–—:\s]*', segment):
+            continue
+
+        normalized = re.sub(r'[\[\]\(\)]', '', segment).strip()
+        explicit_pairs = list(re.finditer(r'(\d+)\s*[xX]\s*(\d+)', normalized))
+
+        pairs = []
+        if explicit_pairs:
+            coded_pattern_seen = True
+            for match in explicit_pairs:
+                pairs.append((match.group(1), int(match.group(2))))
+        else:
+            pair_match = re.match(r'^(\d+)\s+(\d+)$', normalized)
+            single_match = re.match(r'^(\d+)$', normalized)
+            if pair_match:
+                coded_pattern_seen = True
+                pairs.append((pair_match.group(1), int(pair_match.group(2))))
+            elif single_match:
+                coded_pattern_seen = True
+                pairs.append((single_match.group(1), 1))
+
+        for raw_code, qty in pairs:
+            numeric_code = str(int(raw_code))
+            mapped = code_map.get(numeric_code)
+            if not mapped:
+                dropped_invalid_codes += 1
+                continue
+
+            price = mapped['price']
+            total = price * qty
+            grand_total += total
+
+            existing = next((x for x in items if x['item'] == mapped['name']), None)
+            if existing:
+                existing['qty'] += qty
+                existing['total'] = existing['qty'] * existing['price']
+            else:
+                items.append({
+                    'item': mapped['name'],
+                    'qty': qty,
+                    'price': price,
+                    'total': total
+                })
+
+    return {
+        'items': items,
+        'grandTotal': grand_total,
+        'droppedInvalidCodes': dropped_invalid_codes,
+        'codedPatternSeen': coded_pattern_seen
+    }
+
 def parse_order(text, backend_url=None, token=None):
-    menu = load_menu(backend_url=backend_url, token=token)
+    menu_data = load_menu(backend_url=backend_url, token=token)
+    menu = menu_data['by_name']
+    code_map = menu_data['by_code']
     text = text.lower()
     menu_items = list(menu.keys())
     
@@ -56,12 +147,25 @@ def parse_order(text, backend_url=None, token=None):
     grand_total = 0
     table_number = None
 
-    # Extract table number (e.g., "table 5" or "meiz 5")
+    # Extract table number (supports "table 5" and short marker "T - 5")
     table_match = re.search(r'\b(table|meiz|no|number)\s*(\d+)\b', text)
+    short_table_match = re.search(r'\b[tT]\s*[-–—:\s]*\s*(\d+)\b', text)
     if table_match:
         table_number = int(table_match.group(2))
         # Remove table part from text to avoid confusion with item quantities
         text = text.replace(table_match.group(0), '')
+    elif short_table_match:
+        table_number = int(short_table_match.group(1))
+        text = text.replace(short_table_match.group(0), '')
+
+    coded_result = parse_coded_segments(text, code_map)
+    if coded_result['codedPatternSeen'] and code_map:
+        return {
+            'tableNumber': table_number,
+            'items': coded_result['items'],
+            'grandTotal': coded_result['grandTotal'],
+            'droppedInvalidCodes': coded_result['droppedInvalidCodes']
+        }
     
     # 1. First, we find all numbers or quantity words in the text using regex
     num_pattern = r'\b(\d+|' + '|'.join(WORD_TO_NUM.keys()) + r')\b'
@@ -84,6 +188,7 @@ def parse_order(text, backend_url=None, token=None):
                 "total": total
             })
         return {
+            "tableNumber": table_number,
             "items": parsed_items,
             "grandTotal": grand_total
         }

@@ -12,6 +12,20 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: FRONTEND_BASE_URL
+        sync: false
+      - key: PASSWORD_RESET_TOKEN_TTL_MINUTES
+        value: 30
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
 
   - type: web
     name: voxbill-ai

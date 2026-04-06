@@ -6,6 +6,95 @@ const { protect, requireRole } = require('../middleware/authMiddleware');
 const { broadcast } = require('./notifications');
 
 const router = express.Router();
+const RUSH_OCR_AI_URL = process.env.RUSH_OCR_AI_URL || 'http://127.0.0.1:5000/process-rush-image';
+
+/* ─────────────────────────────────────────
+   POST /orders/rush-ocr – API OCR for Rush slips
+───────────────────────────────────────── */
+router.post('/rush-ocr', protect, async (req, res) => {
+    try {
+        const { imageBase64, mimeType } = req.body || {};
+        if (!imageBase64 || typeof imageBase64 !== 'string') {
+            return res.status(400).json({ success: false, message: 'imageBase64 is required' });
+        }
+
+        const allowedTypes = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+        const safeMimeType = (mimeType || 'image/jpeg').toLowerCase();
+        if (!allowedTypes.has(safeMimeType)) {
+            return res.status(400).json({ success: false, message: 'Unsupported image mimeType' });
+        }
+
+        // Approximate raw bytes from base64 length.
+        const approxBytes = Math.floor((imageBase64.length * 3) / 4);
+        const maxBytes = 6 * 1024 * 1024;
+        if (approxBytes > maxBytes) {
+            return res.status(413).json({ success: false, message: 'Image too large (max 6MB)' });
+        }
+
+        const today = new Date().toISOString().slice(0, 10);
+        let settings = await Settings.findOne({ restaurantId: req.user.restaurantId });
+        if (!settings) {
+            settings = await Settings.create({ restaurantId: req.user.restaurantId });
+        }
+
+        if (settings.rushOcrUsageDate !== today) {
+            settings.rushOcrUsageDate = today;
+            settings.rushOcrUsageCount = 0;
+            await settings.save();
+        }
+
+        const cap = Number.isFinite(settings.rushOcrDailyCap)
+            ? settings.rushOcrDailyCap
+            : 100;
+        if (settings.rushOcrUsageCount >= cap) {
+            return res.status(429).json({
+                success: false,
+                message: `Rush OCR daily limit reached (${cap}/${cap})`
+            });
+        }
+
+        const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+        const aiRes = await fetch(RUSH_OCR_AI_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                imageBase64,
+                mimeType: safeMimeType,
+                token,
+                backendUrl: process.env.BACKEND_URL || 'http://127.0.0.1:4000'
+            })
+        });
+
+        const aiJson = await aiRes.json().catch(() => ({}));
+        if (!aiRes.ok) {
+            return res.status(aiRes.status || 502).json({
+                success: false,
+                message: aiJson.error || aiJson.message || 'Rush OCR service failed',
+                details: aiJson
+            });
+        }
+
+        settings.rushOcrUsageCount += 1;
+        await settings.save();
+
+        return res.json({
+            success: true,
+            data: aiJson,
+            usage: {
+                date: settings.rushOcrUsageDate,
+                used: settings.rushOcrUsageCount,
+                cap: cap
+            }
+        });
+    } catch (err) {
+        console.error('Rush OCR Error:', err.message);
+        return res.status(500).json({
+            success: false,
+            message: 'Rush OCR failed',
+            error: err.message
+        });
+    }
+});
 
 /* ─────────────────────────────────────────
    GET /orders/tables/status – Live Table status

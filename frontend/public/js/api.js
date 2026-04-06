@@ -19,10 +19,39 @@
 (function () {
     'use strict';
 
-    // Dynamic base URL for mobile/ngrok support
-    const BASE = window.location.hostname === 'localhost'
-        ? 'http://127.0.0.1:4000/api'
-        : 'https://voxill-backend.onrender.com';
+    function uniq(arr) {
+        return [...new Set(arr.filter(Boolean))];
+    }
+
+    function buildBaseCandidates() {
+        // Optional manual override from config.js
+        if (window.VOX_API_BASE && typeof window.VOX_API_BASE === 'string') {
+            return [window.VOX_API_BASE.replace(/\/$/, '')];
+        }
+
+        const host = window.location.hostname;
+        const isLocal = host === 'localhost' || host === '127.0.0.1';
+
+        if (isLocal) {
+            // Try same-origin proxy first (frontend server), then direct backend.
+            return uniq([
+                '/api',
+                'http://127.0.0.1:3000/api',
+                'http://localhost:3000/api',
+                'http://127.0.0.1:4000',
+                'http://localhost:4000'
+            ]);
+        }
+
+        // Production: Vercel server proxy first, then direct backend fallback.
+        return uniq([
+            '/api',
+            'https://voxill-backend.onrender.com'
+        ]);
+    }
+
+    const BASE_CANDIDATES = buildBaseCandidates();
+    let activeBase = BASE_CANDIDATES[0] || '';
 
     /* ── Auth token helpers ──────────────────────────── */
     function getToken() { return sessionStorage.getItem('vb_jwt') || ''; }
@@ -35,24 +64,55 @@
     }
 
     /* ── Core fetch wrapper ──────────────────────────── */
+    function isRouteMissing(status, json) {
+        if (status !== 404) return false;
+        const msg = (json && (json.message || json.error)) || '';
+        return typeof msg === 'string' && /route\s+\w+\s+.+\s+not\s+found/i.test(msg);
+    }
+
     async function call(method, path, body) {
         const headers = { 'Content-Type': 'application/json' };
         const token = getToken();
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        try {
-            const res = await fetch(`${BASE}${path}`, {
-                method,
-                headers,
-                body: body ? JSON.stringify(body) : undefined
-            });
-            const json = await res.json().catch(() => ({}));
-            return { ok: res.ok, status: res.status, data: json };
-        } catch (err) {
-            // Network error — backend might be offline
-            console.warn('[VoxAPI] backend unreachable:', err.message);
-            return { ok: false, status: 0, data: null, offline: true };
+        const tried = uniq([activeBase, ...BASE_CANDIDATES]);
+        let lastNetworkErr = null;
+
+        for (const base of tried) {
+            try {
+                const res = await fetch(`${base}${path}`, {
+                    method,
+                    headers,
+                    body: body ? JSON.stringify(body) : undefined
+                });
+                const json = await res.json().catch(() => ({}));
+
+                if (res.ok) {
+                    activeBase = base;
+                    return { ok: true, status: res.status, data: json };
+                }
+
+                // If this endpoint shape is wrong (/api prefix mismatch), try next candidate.
+                const shouldRetry = isRouteMissing(res.status, json) || res.status === 502 || res.status === 503;
+                if (shouldRetry) {
+                    continue;
+                }
+
+                return { ok: false, status: res.status, data: json };
+            } catch (err) {
+                lastNetworkErr = err;
+            }
         }
+
+        // Network error — backend might be offline on all candidates
+        console.warn('[VoxAPI] backend unreachable:', lastNetworkErr ? lastNetworkErr.message : 'All API candidates failed');
+        return {
+            ok: false,
+            status: 0,
+            data: null,
+            offline: true,
+            error: lastNetworkErr ? lastNetworkErr.message : 'All API candidates failed'
+        };
     }
 
     /* ── Auth ────────────────────────────────────────── */
@@ -81,6 +141,14 @@
             localStorage.setItem('vb_db_user', JSON.stringify(r.data.user));
         }
         return r;
+    }
+
+    async function forgotPassword(email) {
+        return call('POST', '/auth/forgot-password', { email });
+    }
+
+    async function resetPassword(token, password) {
+        return call('POST', `/auth/reset-password/${encodeURIComponent(token)}`, { password });
     }
 
     function logout() { clearToken(); window.location.href = '/pages/login.html'; }
@@ -120,6 +188,10 @@
             gst: orderData.gst,
             total: orderData.total
         });
+    }
+
+    async function processRushImage(imagePayload) {
+        return call('POST', '/orders/rush-ocr', imagePayload);
     }
 
     async function saveDraftOrder(orderData) {
@@ -226,11 +298,11 @@
     /* ── Expose globally ─────────────────────────────── */
     window.VoxAPI = {
         // Auth
-        login, register, logout, isLoggedIn, isManager, getUser,
+        login, register, forgotPassword, resetPassword, logout, isLoggedIn, isManager, getUser,
         // Menu
         getMenu, addMenuItem, updateMenuItem, deleteMenuItem, bulkSyncMenu, clearAllMenu,
         // Orders
-        saveOrder, saveDraftOrder, getDraftOrders, resumeDraftOrder,
+        saveOrder, processRushImage, saveDraftOrder, getDraftOrders, resumeDraftOrder,
         settleOrder, updateOrder, getOrders, getOrder, getTablesStatus, clearAllOrders,
         // Settings
         getSettings, saveSettings,

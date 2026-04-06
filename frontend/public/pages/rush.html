@@ -572,15 +572,64 @@
                 }));
             }
 
+            function parseRushFailureHint(message) {
+                const msg = String(message || '').toLowerCase();
+                if (msg.includes('anthropic_api_key') || msg.includes('api key')) {
+                    return 'Rush OCR key missing. Set ANTHROPIC_API_KEY in AI service env.';
+                }
+                if (msg.includes('failed to fetch') || msg.includes('econnrefused') || msg.includes('unreachable')) {
+                    return 'Rush OCR service unreachable. Check backend/AI servers and RUSH_OCR_AI_URL.';
+                }
+                if (msg.includes('daily limit')) {
+                    return 'Rush OCR daily usage cap reached. Increase cap in Settings or wait for reset.';
+                }
+                return 'Rush OCR could not read this slip. Re-capture photo in bright light and keep full slip in frame.';
+            }
+
+            async function getRushMenuHealth() {
+                const res = await VoxAPI.getMenu();
+                if (!res.ok) {
+                    throw new Error((res.data && (res.data.message || res.data.error)) || 'Unable to load menu');
+                }
+                const items = res.data.data || res.data || [];
+                const codedItems = items.filter(i => i && i.code != null && String(i.code).trim() !== '');
+                return {
+                    items,
+                    totalItems: items.length,
+                    codedItems,
+                    codedCount: codedItems.length
+                };
+            }
+
+            function abortToUpload(errorMsg) {
+                stepLoading.style.display = 'none';
+                stepReview.style.display  = 'none';
+                stepUpload.style.display  = 'block';
+                if (errorMsg) VB.showToast(errorMsg, 'error');
+            }
+
             async function runExtraction(file) {
+                let menuHealth = null;
+
                 try {
+                    menuHealth = await getRushMenuHealth();
+                    if (menuHealth.totalItems === 0) {
+                        abortToUpload('Menu is empty. Add menu items before using Rush Mode.');
+                        return;
+                    }
+                    if (menuHealth.codedCount === 0) {
+                        abortToUpload('Rush Mode needs menu code numbers. Add code values in Menu page first.');
+                        return;
+                    }
+
                     // API-first OCR path (Anthropic vision via backend route)
                     const imageBase64 = await fileToBase64(file);
                     const mimeType = file.type || 'image/jpeg';
                     const ocrRes = await VoxAPI.processRushImage({ imageBase64, mimeType });
 
                     if (!ocrRes.ok || !ocrRes.data || !ocrRes.data.data) {
-                        throw new Error(ocrRes.data?.message || 'Rush OCR API failed');
+                        const serverMsg = ocrRes.data?.message || ocrRes.error || 'Rush OCR API failed';
+                        throw new Error(serverMsg);
                     }
 
                     const parsed = ocrRes.data.data;
@@ -611,7 +660,12 @@
                     }
 
                     if (extractedItems.length === 0) {
-                        VB.showToast('No items detected — check the slip format', 'info');
+                        const hasCodesInText = /\b\d+\s*[xX]\s*\d+\b/.test(parsed.rawText || '');
+                        if (hasCodesInText) {
+                            VB.showToast('Codes detected but not matched. Verify menu code numbers in Menu page.', 'error');
+                        } else {
+                            VB.showToast('No items detected — check the slip format', 'info');
+                        }
                     }
                 } catch (error) {
                     // Emergency fallback to local OCR parser if API is unavailable.
@@ -619,8 +673,12 @@
 
                     let menuItems = [];
                     try {
-                        const res = await VoxAPI.getMenu();
-                        if (res.ok) menuItems = res.data.data || res.data || [];
+                        if (menuHealth && menuHealth.items) {
+                            menuItems = menuHealth.items;
+                        } else {
+                            const res = await VoxAPI.getMenu();
+                            if (res.ok) menuItems = res.data.data || res.data || [];
+                        }
                     } catch (e) {
                         console.warn('Could not load menu for local fallback extraction.', e);
                     }
@@ -652,7 +710,7 @@
                         renderReviewTable();
                         saveDraft();
 
-                        VB.showToast('Used local OCR fallback. API OCR unavailable.', 'info');
+                        VB.showToast('Used local OCR fallback. ' + parseRushFailureHint(error.message), 'info');
 
                         if (parsed.droppedInvalidCodes > 0) {
                             VB.showToast(
@@ -664,13 +722,12 @@
                         }
 
                         if (extractedItems.length === 0) {
-                            VB.showToast('No items detected — check the slip format', 'info');
+                            abortToUpload(parseRushFailureHint(error.message));
+                            return;
                         }
                     } catch (fallbackErr) {
                         console.error('OCR Error:', fallbackErr);
-                        VB.showToast('Could not process image. Try again with a clearer photo.', 'error');
-                        stepLoading.style.display = 'none';
-                        stepUpload.style.display  = 'block';
+                        abortToUpload(parseRushFailureHint(error.message));
                     }
                 }
             }

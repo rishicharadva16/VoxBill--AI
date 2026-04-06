@@ -57,6 +57,39 @@ voxbill/
 5. Open browser:
    http://localhost:3000
 
+## Rush Mode Reliability Checklist (Main Feature)
+
+Use this checklist whenever Rush Mode stops recognizing handwritten slips:
+
+1. Menu codes are mandatory for Rush:
+   Every item used in paper slips must have a numeric code in Menu page.
+
+2. Services must be up:
+   - Frontend: http://127.0.0.1:3000/health
+   - Backend:  http://127.0.0.1:4000/health
+   - AI:       http://127.0.0.1:5000/health
+   Run helper: `node scripts/check_services.js`
+
+3. AI OCR env must be configured:
+   - ANTHROPIC_API_KEY
+   - ANTHROPIC_VISION_MODEL
+   - RUSH_OCR_AI_URL
+   - RUSH_OCR_TIMEOUT_SEC
+
+4. Slip writing format:
+   - `T - 5`
+   - `C - Rishi`
+   - `1 x 2`
+   - `2 x 1`
+   - `3 x 3`
+   - `N - less spicy` (optional)
+
+5. Capture quality:
+   Keep full slip in frame, avoid shadows, and keep camera parallel to paper.
+
+6. If Rush falls back to local OCR:
+   Treat result as low-confidence and verify before confirming order.
+
 ## First Time
 
 1. Click Manager tab and Register

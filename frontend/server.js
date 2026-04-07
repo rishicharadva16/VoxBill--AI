@@ -39,7 +39,7 @@ app.get('/api/notifications/stream', (req, res) => {
     res.setHeader('X-Accel-Buffering', 'no');
 
     const proxyReq = http.request(
-        `http://127.0.0.1:4000/notifications/stream?token=${encodeURIComponent(token)}`,
+        `${BACKEND_URL}/notifications/stream?token=${encodeURIComponent(token)}`,
         { headers: { 'Accept': 'text/event-stream' } },
         (proxyRes) => {
             proxyRes.pipe(res);

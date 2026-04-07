@@ -2,6 +2,7 @@ const express    = require('express');
 const jwt        = require('jsonwebtoken');
 const crypto     = require('crypto');
 const nodemailer = require('nodemailer');
+const mongoose   = require('mongoose');
 const User       = require('../models/User');
 const Restaurant = require('../models/Restaurant');
 const Settings   = require('../models/Settings');
@@ -12,6 +13,20 @@ const signToken = (id) =>
     jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '24h' });
 
 const RESET_TOKEN_TTL_MINUTES = Number(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES || 30);
+const ALLOW_DIRECT_PASSWORD_RESET = (process.env.ALLOW_DIRECT_PASSWORD_RESET || 'true').toLowerCase() !== 'false';
+
+function ensureDbReady(res) {
+    // 1 = connected
+    if (mongoose.connection.readyState === 1) return true;
+    const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+    res.status(503).json({
+        success: false,
+        code: 'DB_UNAVAILABLE',
+        message: 'Database unavailable. Please retry in a moment.',
+        dbState: states[mongoose.connection.readyState] || 'unknown'
+    });
+    return false;
+}
 
 function buildMailTransport() {
     if (!process.env.SMTP_HOST || !process.env.SMTP_PORT || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
@@ -58,6 +73,8 @@ async function sendResetEmail(email, link) {
 ───────────────────────────────────────── */
 router.post('/register', async (req, res) => {
     try {
+        if (!ensureDbReady(res)) return;
+
         const { name, email, password, role = 'waiter', restaurantName } = req.body;
         if (!name || (role === 'manager' && !email) || !password) {
             return res.status(400).json({ success: false, message: 'name, email (for manager), and password required' });
@@ -97,6 +114,8 @@ router.post('/register', async (req, res) => {
 ───────────────────────────────────────── */
 router.post('/login', async (req, res) => {
     try {
+        if (!ensureDbReady(res)) return;
+
         const { email, username, password } = req.body;
         if ((!email && !username) || !password)
             return res.status(400).json({ success: false, message: 'ID (email/username) and password required' });
@@ -125,6 +144,8 @@ router.post('/login', async (req, res) => {
 ───────────────────────────────────────── */
 router.post('/forgot-password', async (req, res) => {
     try {
+        if (!ensureDbReady(res)) return;
+
         const genericResponse = {
             success: true,
             message: 'If the account exists, a password reset link has been sent.'
@@ -175,6 +196,8 @@ router.post('/forgot-password', async (req, res) => {
 ───────────────────────────────────────── */
 router.post('/reset-password/:token', async (req, res) => {
     try {
+        if (!ensureDbReady(res)) return;
+
         const rawToken = (req.params.token || '').trim();
         const nextPassword = (req.body.password || '').toString();
 
@@ -214,6 +237,16 @@ router.post('/reset-password/:token', async (req, res) => {
 ───────────────────────────────────────── */
 router.post('/reset-password-direct', async (req, res) => {
     try {
+        if (!ensureDbReady(res)) return;
+
+        if (!ALLOW_DIRECT_PASSWORD_RESET) {
+            return res.status(403).json({
+                success: false,
+                code: 'DIRECT_RESET_DISABLED',
+                message: 'Direct password reset is disabled in this environment.'
+            });
+        }
+
         const identifier = (req.body.identifier || req.body.email || req.body.username || '').toString().trim().toLowerCase();
         const nextPassword = (req.body.password || '').toString();
 
@@ -251,6 +284,8 @@ router.post('/reset-password-direct', async (req, res) => {
 ───────────────────────────────────────── */
 router.get('/staff/:id', async (req, res) => {
     try {
+        if (!ensureDbReady(res)) return;
+
         const staff = await User.find({ 
             restaurantId: req.params.id, 
             role: 'waiter' 
@@ -268,6 +303,8 @@ router.get('/staff/:id', async (req, res) => {
    ───────────────────────────────────────── */
 router.get('/restaurants', async (req, res) => {
     try {
+        if (!ensureDbReady(res)) return;
+
         const restaurants = await Restaurant.find({}).select('name').sort({ name: 1 }).lean();
         res.json({ success: true, data: restaurants });
     } catch (err) {
@@ -281,6 +318,8 @@ router.get('/restaurants', async (req, res) => {
    ───────────────────────────────────────── */
 router.get('/restaurants/:id', async (req, res) => {
     try {
+        if (!ensureDbReady(res)) return;
+
         const restaurant = await Restaurant.findById(req.params.id).select('name address phone').lean();
         if (!restaurant) return res.status(404).json({ success: false, message: 'Restaurant not found' });
         res.json({ success: true, data: restaurant });
@@ -295,6 +334,8 @@ router.get('/restaurants/:id', async (req, res) => {
 ───────────────────────────────────────── */
 router.post('/staff-restaurant', async (req, res) => {
     try {
+        if (!ensureDbReady(res)) return;
+
         const { pin } = req.body;
         if (!pin || pin.trim().length < 4) {
             return res.status(400).json({

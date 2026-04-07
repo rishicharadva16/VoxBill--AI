@@ -28,6 +28,8 @@ services:
         sync: false
       - key: ALLOW_INLINE_PASSWORD_RESET_LINK
         value: "true"
+      - key: ALLOW_DIRECT_PASSWORD_RESET
+        value: "true"
 
   - type: web
     name: voxbill-ai

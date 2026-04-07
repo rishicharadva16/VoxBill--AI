@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 
 const authRoutes = require('./routes/auth');
@@ -29,7 +30,19 @@ app.use(express.json({ limit: '5mb' }));  // 5mb for logo base64
 app.use(express.urlencoded({ extended: true }));
 
 // ── Health check ──────────────────────────────────────
-app.get('/health', (req, res) => res.json({ status: 'ok', service: 'VoxBill Backend', timestamp: new Date() }));
+app.get('/health', (req, res) => {
+    const dbReady = mongoose.connection.readyState === 1;
+    const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+    res.status(dbReady ? 200 : 503).json({
+        status: dbReady ? 'ok' : 'degraded',
+        service: 'VoxBill Backend',
+        db: {
+            ready: dbReady,
+            state: states[mongoose.connection.readyState] || 'unknown'
+        },
+        timestamp: new Date()
+    });
+});
 
 // ── Routes ────────────────────────────────────────────
 app.use('/auth', authRoutes);

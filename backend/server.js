@@ -12,9 +12,6 @@ const analyticsRoutes = require('./routes/analytics');
 const staffRoutes = require('./routes/staff');
 const { router: notiRoutes } = require('./routes/notifications');
 
-// ── Connect to MongoDB ────────────────────────────────
-connectDB();
-
 const app = express();
 const PORT = process.env.PORT || 4000;
 
@@ -42,6 +39,30 @@ app.get('/health', (req, res) => {
         },
         timestamp: new Date()
     });
+});
+
+const Restaurant = require('./models/Restaurant');
+
+app.get('/debug-db', async (req, res) => {
+    try {
+
+        const count = await Restaurant.countDocuments();
+
+        res.json({
+            success: true,
+            mongoState: mongoose.connection.readyState,
+            restaurantCount: count
+        });
+
+    } catch (err) {
+
+        res.status(500).json({
+            success: false,
+            error: err.message,
+            mongoState: mongoose.connection.readyState
+        });
+
+    }
 });
 
 // ── Routes ────────────────────────────────────────────
@@ -82,9 +103,20 @@ app.use((err, req, res, next) => {
     res.status(500).json({ success: false, message: err.message || 'Internal server error' });
 });
 
-// ── Start server ──────────────────────────────────────
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`VoxBill Backend running on port ${PORT}`);
-});
+async function startServer() {
+    try {
+        await connectDB();
+
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`VoxBill Backend running on port ${PORT}`);
+        });
+
+    } catch (err) {
+        console.error('Failed to start server:', err);
+        process.exit(1);
+    }
+}
+
+startServer();
 
 

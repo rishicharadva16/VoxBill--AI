@@ -1,8 +1,7 @@
 const mongoose = require('mongoose');
 
 // Fail fast when DB is unavailable instead of buffering model calls.
-mongoose.set('bufferCommands', true);
-mongoose.set('bufferTimeoutMS', 10000);
+mongoose.set('bufferCommands', false);
 
 const connectDB = async (retries = 3) => {
     const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;

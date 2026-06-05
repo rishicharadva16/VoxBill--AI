@@ -43,8 +43,26 @@ app.get('/health', (req, res) => {
 
 const Restaurant = require('./models/Restaurant');
 
-app.get('/rishi-test', (req, res) => {
-    res.send('RISHI TEST WORKING');
+app.get('/debug-db', async (req, res) => {
+    try {
+
+        const count = await Restaurant.countDocuments();
+
+        res.json({
+            success: true,
+            mongoState: mongoose.connection.readyState,
+            restaurantCount: count
+        });
+
+    } catch (err) {
+
+        res.status(500).json({
+            success: false,
+            error: err.message,
+            mongoState: mongoose.connection.readyState
+        });
+
+    }
 });
 
 // ── Routes ────────────────────────────────────────────

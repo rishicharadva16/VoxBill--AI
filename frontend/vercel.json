@@ -14,6 +14,6 @@
   ],
   "env": {
     "BACKEND_URL": "https://voxill-backend.onrender.com",
-    "AI_URL": "https://voxill-ai.onrender.com/process-order"
+    "AI_URL": "https://voxbill-ai.onrender.com/process-order"
   }
 } 

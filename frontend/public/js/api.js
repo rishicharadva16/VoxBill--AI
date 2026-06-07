@@ -42,14 +42,14 @@
                 'http://localhost:3000/api',
                 'http://127.0.0.1:4000',
                 'http://localhost:4000',
-                'https://voxbill-backend.onrender.com'
+                'https://voxill-backend.onrender.com'
             ]);
         }
 
         // Production: Vercel server proxy first, then direct backend fallback.
         return uniq([
             '/api',
-            'https://voxbill-backend.onrender.com',
+            'https://voxill -backend.onrender.com',
             'http://127.0.0.1:4000',
             'http://localhost:4000'
         ]);

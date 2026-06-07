@@ -23,40 +23,13 @@
         return [...new Set(arr.filter(Boolean))];
     }
 
-    function buildBaseCandidates() {
-        // Optional manual override from config.js
-        if (window.VOX_API_BASE && typeof window.VOX_API_BASE === 'string') {
-            return [window.VOX_API_BASE.replace(/\/$/, '')];
+    const BASE = (() => {
+        const h = window.location.hostname;
+        if (h === 'localhost' || h === '127.0.0.1') {
+            return 'http://127.0.0.1:4000/api';
         }
-
-        const host = window.location.hostname;
-        const isLocal = host === 'localhost' || host === '127.0.0.1';
-        const isPrivateIpv4 = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
-        const isLocalLike = isLocal || isPrivateIpv4 || host.endsWith('.local');
-
-        if (isLocalLike) {
-            // Try same-origin proxy first (frontend server), then direct backend.
-            return uniq([
-                '/api',
-                'http://127.0.0.1:3000/api',
-                'http://localhost:3000/api',
-                'http://127.0.0.1:4000',
-                'http://localhost:4000',
-                'https://voxill-backend.onrender.com'
-            ]);
-        }
-
-        // Production: Vercel server proxy first, then direct backend fallback.
-        return uniq([
-            '/api',
-            'https://voxill -backend.onrender.com',
-            'http://127.0.0.1:4000',
-            'http://localhost:4000'
-        ]);
-    }
-
-    const BASE_CANDIDATES = buildBaseCandidates();
-    let activeBase = BASE_CANDIDATES[0] || '';
+        return 'https://voxill-backend.onrender.com/api';
+    })();
 
     /* ── Auth token helpers ──────────────────────────── */
     function getToken() { return sessionStorage.getItem('vb_jwt') || ''; }

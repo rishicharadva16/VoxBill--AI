@@ -3,6 +3,8 @@ const cors = require('cors');
 const path = require('path');
 const http = require('http');
 
+const BACKEND_URL = process.env.BACKEND_URL
+    || 'http://127.0.0.1:4000';
 const AI_SERVICE_URL = process.env.AI_URL
     || 'http://127.0.0.1:5000/process-order';
 
@@ -26,8 +28,7 @@ app.get('/', (req, res) => {
     res.redirect('/pages/login.html');
 });
 
-// ── API Proxy Logic ──────────────────────────────────
-const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:4000';
+
 
 // ── SSE Proxy Bypass (must come BEFORE generic /api proxy) ──
 app.get('/api/notifications/stream', (req, res) => {
@@ -54,27 +55,20 @@ app.get('/api/notifications/stream', (req, res) => {
 app.use('/api', async (req, res) => {
     console.log(`[Proxy] ${req.method} ${req.url}`);
     try {
-        const method = req.method;
-        let backendPath = req.url; // This is the path after /api
-        
-        // Specific mapping for Problem 2: /api/restaurants -> /auth/restaurants
-        if (backendPath === '/restaurants' || backendPath === '/restaurants/') {
-            backendPath = '/auth/restaurants';
-        }
-
-        const body = ['POST', 'PUT', 'PATCH'].includes(method) ? JSON.stringify(req.body) : undefined;
-        
-        const response = await fetch(`${BACKEND_URL}${backendPath}`, {
-            method,
+        const targetUrl = `${BACKEND_URL}${req.path}`;
+        const response = await fetch(targetUrl, {
+            method: req.method,
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': req.headers['authorization'] || ''
+                ...(req.headers.authorization ? {
+                    'Authorization': req.headers.authorization
+                } : {})
             },
-            body
+            body: ['GET','HEAD'].includes(req.method) 
+                ? undefined 
+                : JSON.stringify(req.body)
         });
-
-        const data = await response.json().catch(() => ({}));
-        console.log(`[Proxy] Response: ${response.status}`);
+        const data = await response.json();
         res.status(response.status).json(data);
     } catch (error) {
         console.error(`Proxy error for ${req.originalUrl}:`, error.message);

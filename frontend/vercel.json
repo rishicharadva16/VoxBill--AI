@@ -13,7 +13,7 @@
     }
   ],
   "env": {
-    "AI_URL": "https://voxbill-ai.onrender.com",
-    "BACKEND_URL": "https://voxill-backend.onrender.com"
+    "BACKEND_URL": "https://voxill-backend.onrender.com",
+    "AI_URL": "https://voxill-ai.onrender.com/process-order"
   }
-}
+} 

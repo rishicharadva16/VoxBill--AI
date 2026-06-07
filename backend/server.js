@@ -17,11 +17,10 @@ const PORT = process.env.PORT || 4000;
 
 // ── Middleware ────────────────────────────────────────
 app.use(cors({
-    origin: (origin, callback) => {
-        // Allow all origins for local network testing
-        callback(null, true);
-    },
-    credentials: true
+    origin: true,
+    credentials: true,
+    methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+    allowedHeaders: ['Content-Type','Authorization']
 }));
 app.use(express.json({ limit: '5mb' }));  // 5mb for logo base64
 app.use(express.urlencoded({ extended: true }));

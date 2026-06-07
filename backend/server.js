@@ -40,6 +40,16 @@ app.get('/health', (req, res) => {
     });
 });
 
+app.get('/api/health', (req, res) => {
+    const dbReady = mongoose.connection.readyState === 1;
+    res.status(dbReady ? 200 : 503).json({
+        status: dbReady ? 'ok' : 'degraded',
+        service: 'VoxBill Backend',
+        db: { ready: dbReady },
+        timestamp: new Date()
+    });
+});
+
 app.get('/rishi-test', (req, res) => {
     res.json({
         success: true,

@@ -4626,8 +4626,8 @@ function initOfflineBanner() {
     document.getElementById('retryConnect')
         .addEventListener('click', checkConnection);
 
-    // Initial check after 3 seconds
-    setTimeout(checkConnection, 3000);
+    // Initial check after 15 seconds (allow Render cold start)
+    setTimeout(checkConnection, 15000);
     setInterval(checkConnection, 15000);
 
     // Browser online/offline events

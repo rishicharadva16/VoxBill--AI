@@ -53,45 +53,26 @@
         const token = getToken();
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const tried = uniq([activeBase, ...BASE_CANDIDATES]);
-        let lastNetworkErr = null;
+        try {
+            const res = await fetch(`${BASE}${path}`, {
+                method,
+                headers,
+                body: body ? JSON.stringify(body) : undefined
+            });
+            const json = await res.json().catch(() => ({}));
 
-        for (const base of tried) {
-            try {
-                const res = await fetch(`${base}${path}`, {
-                    method,
-                    headers,
-                    body: body ? JSON.stringify(body) : undefined
-                });
-                const json = await res.json().catch(() => ({}));
-
-                if (res.ok) {
-                    activeBase = base;
-                    return { ok: true, status: res.status, data: json, baseUsed: base };
-                }
-
-                // If this endpoint shape is wrong (/api prefix mismatch), try next candidate.
-                const shouldRetry = isRouteMissing(res.status, json) || res.status === 502 || res.status === 503;
-                if (shouldRetry) {
-                    continue;
-                }
-
-                return { ok: false, status: res.status, data: json, baseUsed: base };
-            } catch (err) {
-                lastNetworkErr = err;
-            }
+            return { ok: res.ok, status: res.status, data: json, baseUsed: BASE };
+        } catch (err) {
+            console.warn('[VoxAPI] backend unreachable:', err.message);
+            return {
+                ok: false,
+                status: 0,
+                data: null,
+                offline: true,
+                baseUsed: null,
+                error: err.message
+            };
         }
-
-        // Network error — backend might be offline on all candidates
-        console.warn('[VoxAPI] backend unreachable:', lastNetworkErr ? lastNetworkErr.message : 'All API candidates failed');
-        return {
-            ok: false,
-            status: 0,
-            data: null,
-            offline: true,
-            baseUsed: null,
-            error: lastNetworkErr ? lastNetworkErr.message : 'All API candidates failed'
-        };
     }
 
     /* ── Auth ────────────────────────────────────────── */

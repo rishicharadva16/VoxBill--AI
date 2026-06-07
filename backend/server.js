@@ -49,13 +49,13 @@ app.get('/rishi-test', (req, res) => {
 });
 
 // ── Routes ────────────────────────────────────────────
-app.use('/auth', authRoutes);
-app.use('/menu', menuRoutes);
-app.use('/orders', orderRoutes);
-app.use('/settings', settingsRoutes);
-app.use('/analytics', analyticsRoutes);
-app.use('/staff', staffRoutes);
-app.use('/notifications', notiRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/menu', menuRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/staff', staffRoutes);
+app.use('/api/notifications', notiRoutes);
 
 // AI Voice Order Proxy route
 app.post('/order', async (req, res) => {
